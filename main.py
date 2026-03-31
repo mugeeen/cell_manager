@@ -10,7 +10,7 @@ from typing import Optional
 
 from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star
-from astrbot.api import logger, llm_tool
+from astrbot.api import logger
 
 # 导入 Cell Manager 核心模块
 from .cell_manager import CellManager, DatabaseManager, CellStatus, ViewMode, visualize_tree
@@ -242,13 +242,13 @@ class CellManagerPlugin(Star):
     
     # ==================== LLM Tools (自然语言支持) ====================
     
-    @llm_tool("cell_create_task")
+    @filter.llm_tool("cell_create_task")
     async def llm_create_task(self, event: AstrMessageEvent, title: str, workload: float = 0.0) -> MessageEventResult:
         '''创建一个新任务。当用户想要创建任务、添加任务、新建任务时调用。
         
         Args:
             title(string): 任务标题
-            workload(float): 预计工作量（可选，默认为0）
+            workload(number): 预计工作量（可选，默认为0）
         '''
         try:
             cell = self.manager.create_cell(title=title, workload=workload)
@@ -259,14 +259,14 @@ class CellManagerPlugin(Star):
         except Exception as e:
             yield event.plain_result(f"❌ 创建失败: {str(e)}")
     
-    @llm_tool("cell_add_subtask")
+    @filter.llm_tool("cell_add_subtask")
     async def llm_add_subtask(self, event: AstrMessageEvent, parent_id: str, title: str, workload: float = 0.0) -> MessageEventResult:
         '''添加子任务到指定父任务。当用户想要添加子任务、分解任务时调用。
         
         Args:
             parent_id(string): 父任务ID
             title(string): 子任务标题
-            workload(float): 预计工作量（可选，默认为0）
+            workload(number): 预计工作量（可选，默认为0）
         '''
         try:
             cell = self.manager.create_cell(title=title, parent_id=parent_id, workload=workload)
@@ -274,7 +274,7 @@ class CellManagerPlugin(Star):
         except Exception as e:
             yield event.plain_result(f"❌ 创建失败: {str(e)}")
     
-    @llm_tool("cell_complete_task")
+    @filter.llm_tool("cell_complete_task")
     async def llm_complete_task(self, event: AstrMessageEvent, cell_id: str) -> MessageEventResult:
         '''标记任务为已完成。当用户说完成了某个任务、标记任务完成时调用。
         
@@ -291,7 +291,7 @@ class CellManagerPlugin(Star):
         except Exception as e:
             yield event.plain_result(f"❌ 操作失败: {str(e)}")
     
-    @llm_tool("cell_show_tree")
+    @filter.llm_tool("cell_show_tree")
     async def llm_show_tree(self, event: AstrMessageEvent, cell_id: str) -> MessageEventResult:
         '''显示任务树结构。当用户想要查看任务树、显示任务结构时调用。
         
@@ -313,7 +313,7 @@ class CellManagerPlugin(Star):
         except Exception as e:
             yield event.plain_result(f"❌ 显示失败: {str(e)}")
     
-    @llm_tool("cell_show_progress")
+    @filter.llm_tool("cell_show_progress")
     async def llm_show_progress(self, event: AstrMessageEvent, cell_id: str) -> MessageEventResult:
         '''查看任务进度统计。当用户想要查看进度、了解完成情况时调用。
         
@@ -337,13 +337,13 @@ class CellManagerPlugin(Star):
         except Exception as e:
             yield event.plain_result(f"❌ 查询失败: {str(e)}")
     
-    @llm_tool("cell_record_hours")
+    @filter.llm_tool("cell_record_hours")
     async def llm_record_hours(self, event: AstrMessageEvent, cell_id: str, hours: float) -> MessageEventResult:
         '''记录任务的实际用时。当用户说花了多少时间、记录时间时调用。
         
         Args:
             cell_id(string): 任务ID
-            hours(float): 实际用时（小时）
+            hours(number): 实际用时（小时）
         '''
         try:
             success = self.manager.set_actual_hours(cell_id, hours)
@@ -354,7 +354,7 @@ class CellManagerPlugin(Star):
         except Exception as e:
             yield event.plain_result(f"❌ 记录失败: {str(e)}")
     
-    @llm_tool("cell_start_task")
+    @filter.llm_tool("cell_start_task")
     async def llm_start_task(self, event: AstrMessageEvent, cell_id: str) -> MessageEventResult:
         '''将任务标记为进行中。当用户说要开始某个任务时调用。
         
