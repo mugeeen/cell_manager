@@ -32,7 +32,7 @@ class CellManagerPlugin(Star):
         self.manager = CellManager(self.db)
         
         # 注册 LLM Tools（让 AI 可以通过自然语言调用）
-        self.context.add_llm_tools(self)
+        # 使用装饰器方式自动注册，无需手动调用
         
         logger.info(f"Cell Manager 插件已初始化，数据库: {db_path}")
     
