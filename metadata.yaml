@@ -1,0 +1,29 @@
+name: astrbot_plugin_cell_manager
+desc: Cell Manager - 任务管理系统，支持无限递归的父子关系和漂亮的树形可视化，支持自然语言交互
+help: |
+  📋 Cell Manager 任务管理系统
+
+  【命令方式】
+  /cell create <标题> [工作量] - 创建任务
+  /cell list - 列出所有任务
+  /cell tree [任务ID] - 显示任务树
+  /cell done <任务ID> - 完成任务
+  /cell doing <任务ID> - 开始任务
+  /cell add <父任务ID> <子任务标题> [工作量] - 添加子任务
+  /cell delete <任务ID> - 删除任务
+  /cell hours <任务ID> <小时数> - 记录实际用时
+  /cell progress [任务ID] - 查看任务进度
+
+  【自然语言方式】
+  直接说话即可，例如：
+  - "创建一个学习Python的任务，工作量10"
+  - "我完成了abc123任务"
+  - "显示abc123的任务树"
+  - "记录abc123任务花了5小时"
+  - "开始执行abc123任务"
+
+  状态图标:
+  [ ] 待办  [>] 进行中  [||] 暂停  [X] 已完成  [-] 已取消
+version: v1.1.0
+author: Cell Manager Team
+repo: https://github.com/your-repo/astrbot_plugin_cell_manager
