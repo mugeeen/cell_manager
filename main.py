@@ -6,6 +6,7 @@ Cell Manager - AstrBot 插件
 """
 
 import os
+import asyncio
 from typing import Optional
 
 from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
@@ -18,6 +19,18 @@ from .cell_manager import CellManager, DatabaseManager, CellStatus, ViewMode, vi
 
 # 导入 Web 路由
 from .web import setup_routes
+
+# 导入 FastAPI 相关（用于独立 Web 服务器）
+try:
+    from fastapi import FastAPI
+    from fastapi.staticfiles import StaticFiles
+    from fastapi.responses import HTMLResponse
+    from fastapi.middleware.cors import CORSMiddleware
+    import uvicorn
+    WEB_SERVER_AVAILABLE = True
+except ImportError:
+    WEB_SERVER_AVAILABLE = False
+    logger.warning("FastAPI/uvicorn 未安装，Web 可视化功能将不可用")
 
 
 class CellManagerPlugin(Star):
@@ -37,25 +50,64 @@ class CellManagerPlugin(Star):
         self.db.init_tables()
         self.manager = CellManager(self.db)
         
+        # Web 服务器相关
+        self.web_server = None
+        self.web_server_task = None
+        self.web_port = 8080  # 默认端口，可以在配置中修改
+        
         # 注册 LLM Tools（让 AI 可以通过自然语言调用）
         # 使用装饰器方式自动注册，无需手动调用
         
-        # 注册 Web 路由（如果 AstrBot 支持）
-        self._setup_web_routes()
+        # 启动独立 Web 服务器
+        self._start_web_server()
         
         logger.info(f"Cell Manager 插件已初始化，数据库: {db_path}")
     
-    def _setup_web_routes(self):
-        """设置 Web 路由"""
+    def _start_web_server(self):
+        """启动独立的 FastAPI Web 服务器"""
+        if not WEB_SERVER_AVAILABLE:
+            logger.warning("FastAPI/uvicorn 未安装，跳过启动 Web 服务器")
+            return
+        
         try:
-            # 获取 AstrBot 的 Quart/FastAPI 应用
-            if hasattr(self.context, 'app') and self.context.app:
-                setup_routes(self.context.app, self.manager, self.db)
-                logger.info("Cell Manager Web 可视化已注册: /cell_manager/visualizer")
-            else:
-                logger.warning("AstrBot 应用实例不可用，Web 可视化功能未启用")
+            # 创建 FastAPI 应用
+            app = FastAPI(title="Cell Manager Web")
+            
+            # 添加 CORS 中间件
+            app.add_middleware(
+                CORSMiddleware,
+                allow_origins=["*"],
+                allow_credentials=True,
+                allow_methods=["*"],
+                allow_headers=["*"],
+            )
+            
+            # 设置路由
+            setup_routes(app, self.manager, self.db)
+            
+            # 启动 uvicorn 服务器（在后台线程中）
+            import threading
+            
+            def run_server():
+                try:
+                    uvicorn.run(
+                        app,
+                        host="0.0.0.0",
+                        port=self.web_port,
+                        log_level="warning"
+                    )
+                except Exception as e:
+                    logger.error(f"Web 服务器运行出错: {e}")
+            
+            # 在后台线程启动服务器
+            server_thread = threading.Thread(target=run_server, daemon=True)
+            server_thread.start()
+            
+            logger.info(f"Cell Manager Web 服务器已启动: http://localhost:{self.web_port}/cell_manager/react-flow")
+            logger.info(f"时间统计界面: http://localhost:{self.web_port}/cell_manager/stats")
+            
         except Exception as e:
-            logger.warning(f"Web 路由注册失败: {e}")
+            logger.error(f"启动 Web 服务器失败: {e}")
     
     async def terminate(self):
         """插件卸载时调用"""
@@ -72,8 +124,7 @@ class CellManagerPlugin(Star):
 
 命令列表:
 /cell create <标题> [工作量] - 创建根任务
-/cell list - 列出所有根任务
-/cell tree [任务ID] - 显示任务树（默认显示第一个根任务）
+/cell tree <任务ID> - 显示任务树
 /cell done <任务ID> - 标记任务为已完成
 /cell doing <任务ID> - 标记任务为进行中
 /cell todo <任务ID> - 标记任务为待办
@@ -81,7 +132,14 @@ class CellManagerPlugin(Star):
 /cell add <父任务ID> <子任务标题> [工作量] - 添加子任务
 /cell delete <任务ID> - 删除任务
 /cell hours <任务ID> <小时数> - 记录实际用时
-/cell progress [任务ID] - 查看任务进度
+/cell progress <任务ID> - 查看任务进度
+/cell archive <任务ID> - 归档任务
+/cell unarchive <任务ID> - 取消归档
+/cell archive-all - 归档所有已完成任务
+
+Web 可视化界面:
+- React Flow: http://<服务器IP>:8080/cell_manager/react-flow
+- 时间统计: http://<服务器IP>:8080/cell_manager/stats
 
 状态图标:
 [ ] 待办  [>] 进行中  [!] 紧急  [X] 已完成
@@ -182,12 +240,7 @@ class CellManagerPlugin(Star):
         '''添加子任务'''
         try:
             cell = self.manager.create_cell(title=title, parent_id=parent_id, workload=workload)
-            result = f"✅ 子任务创建成功！\n"
-            result += f"ID: {cell.id}\n"
-            result += f"标题: {cell.title}\n"
-            result += f"父任务: {parent_id}\n"
-            result += f"层级: {cell.level}"
-            yield event.plain_result(result)
+            yield event.plain_result(f"✅ 子任务创建成功！\nID: {cell.id}\n标题: {title}")
         except Exception as e:
             yield event.plain_result(f"❌ 创建失败: {str(e)}")
     
@@ -230,17 +283,47 @@ class CellManagerPlugin(Star):
                 yield event.plain_result(f"❌ 未找到任务: {cell_id}")
                 return
             
-            result = f"📊 任务进度: {stats.get('root_title', 'Unknown')}\n"
-            result += "-" * 40 + "\n"
+            result = f"📊 {stats.get('root_title', 'Unknown')}\n"
             result += f"整体进度: {progress:.1f}%\n"
-            result += f"总任务数: {stats.get('total_cells', 0)}\n"
-            result += f"已完成: {stats.get('completed_cells', 0)}\n"
-            result += f"总工作量: {stats.get('total_workload', 0):.1f}\n"
-            result += f"已完成工作量: {stats.get('completed_workload', 0):.1f}"
+            result += f"任务数: {stats.get('completed_cells', 0)}/{stats.get('total_cells', 0)} 完成\n"
+            result += f"工作量: {stats.get('completed_workload', 0):.1f}/{stats.get('total_workload', 0):.1f}"
             
             yield event.plain_result(result)
         except Exception as e:
             yield event.plain_result(f"❌ 查询失败: {str(e)}")
+    
+    @filter.command("cell_archive")
+    async def archive_cell_cmd(self, event: AstrMessageEvent, cell_id: str):
+        '''归档任务'''
+        try:
+            success = self.manager.archive_cell(cell_id)
+            if success:
+                yield event.plain_result(f"📦 任务已归档！")
+            else:
+                yield event.plain_result(f"❌ 未找到任务: {cell_id}")
+        except Exception as e:
+            yield event.plain_result(f"❌ 归档失败: {str(e)}")
+    
+    @filter.command("cell_unarchive")
+    async def unarchive_cell_cmd(self, event: AstrMessageEvent, cell_id: str):
+        '''取消归档任务'''
+        try:
+            success = self.manager.unarchive_cell(cell_id)
+            if success:
+                yield event.plain_result(f"📂 任务已取消归档！")
+            else:
+                yield event.plain_result(f"❌ 未找到任务: {cell_id}")
+        except Exception as e:
+            yield event.plain_result(f"❌ 操作失败: {str(e)}")
+    
+    @filter.command("cell_archive_all")
+    async def archive_all_completed(self, event: AstrMessageEvent):
+        '''归档所有已完成的任务'''
+        try:
+            count = self.manager.archive_completed_cells()
+            yield event.plain_result(f"📦 已归档 {count} 个已完成的任务！")
+        except Exception as e:
+            yield event.plain_result(f"❌ 归档失败: {str(e)}")
     
     # ==================== LLM Tools (自然语言支持) ====================
     
