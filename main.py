@@ -59,23 +59,21 @@ class CellManagerPlugin(Star):
         # 注册 LLM Tools（让 AI 可以通过自然语言调用）
         # 使用装饰器方式自动注册，无需手动调用
         
-        # 启动独立 Web 服务器
-        self._start_web_server()
+        # 延迟启动 Web 服务器，等 AstrBot 完全初始化后再启动
+        self._web_app = None
+        if WEB_SERVER_AVAILABLE:
+            self._setup_web_app()
         
         logger.info(f"Cell Manager 插件已初始化，数据库: {db_path}")
     
-    def _start_web_server(self):
-        """启动独立的 FastAPI Web 服务器"""
-        if not WEB_SERVER_AVAILABLE:
-            logger.warning("FastAPI/uvicorn 未安装，跳过启动 Web 服务器")
-            return
-        
+    def _setup_web_app(self):
+        """设置 FastAPI 应用（但不启动）"""
         try:
             # 创建 FastAPI 应用
-            app = FastAPI(title="Cell Manager Web")
+            self._web_app = FastAPI(title="Cell Manager Web")
             
             # 添加 CORS 中间件
-            app.add_middleware(
+            self._web_app.add_middleware(
                 CORSMiddleware,
                 allow_origins=["*"],
                 allow_credentials=True,
@@ -84,29 +82,33 @@ class CellManagerPlugin(Star):
             )
             
             # 设置路由
-            setup_routes(app, self.manager, self.db)
+            setup_routes(self._web_app, self.manager, self.db)
             
-            # 使用 asyncio 创建后台任务启动 uvicorn（参考 LivingMemory 插件）
-            async def run_server():
-                config = uvicorn.Config(
-                    app=app,
-                    host="0.0.0.0",
-                    port=self.web_port,
-                    log_level="warning",
-                    loop="asyncio",
-                )
-                server = uvicorn.Server(config)
-                await server.serve()
-            
-            # 创建后台任务
-            import asyncio
-            asyncio.create_task(run_server())
-            
-            logger.info(f"Cell Manager Web 服务器已启动: http://localhost:{self.web_port}/cell_manager/react-flow")
-            logger.info(f"时间统计界面: http://localhost:{self.web_port}/cell_manager/stats")
+            # 使用 AstrBot 的 register_task 注册启动任务（参考 LivingMemory）
+            self.context.register_task(self._start_web_server_async(), "启动 Cell Manager Web 服务器")
             
         except Exception as e:
-            logger.error(f"启动 Web 服务器失败: {e}")
+            logger.error(f"设置 Web 应用失败: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+    
+    async def _start_web_server_async(self):
+        """异步启动 Web 服务器"""
+        if not self._web_app:
+            return
+        
+        try:
+            config = uvicorn.Config(
+                app=self._web_app,
+                host="0.0.0.0",
+                port=self.web_port,
+                log_level="warning",
+                loop="asyncio",
+            )
+            server = uvicorn.Server(config)
+            await server.serve()
+        except Exception as e:
+            logger.error(f"Web 服务器运行出错: {e}")
             import traceback
             logger.error(traceback.format_exc())
     
