@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>时间统计 - Cell Manager</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+            color: #1d1d1f;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        /* macOS 风格卡片 */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.72);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 
+                0 4px 24px rgba(0, 0, 0, 0.04),
+                0 1px 2px rgba(0, 0, 0, 0.02),
+                inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+            padding: 32px;
+            margin-bottom: 24px;
+        }
+
+        h1 {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            letter-spacing: -0.015em;
+        }
+
+        .subtitle {
+            font-size: 15px;
+            color: #6e6e73;
+            margin-bottom: 32px;
+        }
+
+        /* 日期选择器 */
+        .date-selector {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .nav-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(0, 0, 0, 0.05);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            font-size: 18px;
+            color: #1d1d1f;
+        }
+
+        .nav-btn:hover {
+            background: rgba(0, 0, 0, 0.1);
+            transform: scale(1.05);
+        }
+
+        .nav-btn:active {
+            transform: scale(0.95);
+        }
+
+        .date-display {
+            font-size: 20px;
+            font-weight: 600;
+            min-width: 140px;
+            text-align: center;
+            color: #1d1d1f;
+        }
+
+        /* 统计概览 */
+        .stats-overview {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .stat-item {
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+            border: 1px solid rgba(0, 0, 0, 0.04);
+        }
+
+        .stat-value {
+            font-size: 36px;
+            font-weight: 700;
+            color: #007aff;
+            line-height: 1;
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            font-size: 13px;
+            color: #6e6e73;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* 图表容器 */
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-bottom: 32px;
+        }
+
+        /* 任务列表 */
+        .task-list-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #1d1d1f;
+        }
+
+        .task-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .task-item {
+            display: flex;
+            align-items: center;
+            padding: 16px 20px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 12px;
+            border: 1px solid rgba(0, 0, 0, 0.04);
+            transition: all 0.2s ease;
+        }
+
+        .task-item:hover {
+            background: rgba(255, 255, 255, 0.8);
+            transform: translateX(4px);
+        }
+
+        .task-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 16px;
+            flex-shrink: 0;
+        }
+
+        .task-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .task-title {
+            font-size: 15px;
+            font-weight: 500;
+            color: #1d1d1f;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .task-root {
+            font-size: 12px;
+            color: #6e6e73;
+        }
+
+        .task-time {
+            font-size: 15px;
+            font-weight: 600;
+            color: #007aff;
+            white-space: nowrap;
+        }
+
+        .task-time-unit {
+            font-size: 12px;
+            font-weight: 400;
+            color: #6e6e73;
+            margin-left: 2px;
+        }
+
+        /* 空状态 */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6e6e73;
+        }
+
+        .empty-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .empty-text {
+            font-size: 16px;
+        }
+
+        /* 加载状态 */
+        .loading {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6e6e73;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(0, 122, 255, 0.1);
+            border-top-color: #007aff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* 响应式 */
+        @media (max-width: 600px) {
+            body {
+                padding: 20px 16px;
+            }
+
+            .glass-card {
+                padding: 24px;
+            }
+
+            h1 {
+                font-size: 28px;
+            }
+
+            .stats-overview {
+                grid-template-columns: 1fr;
+            }
+
+            .chart-container {
+                height: 250px;
+            }
+        }
+
+        /* 返回按钮 */
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #007aff;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 24px;
+            transition: opacity 0.2s;
+        }
+
+        .back-link:hover {
+            opacity: 0.7;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/cell_manager/react-flow" class="back-link">
+            ← 返回任务视图
+        </a>
+
+        <div class="glass-card">
+            <h1>时间统计</h1>
+            <p class="subtitle">查看每日完成的任务和用时分布</p>
+
+            <div class="date-selector">
+                <button class="nav-btn" onclick="changeDate(-1)">‹</button>
+                <div class="date-display" id="dateDisplay">加载中...</div>
+                <button class="nav-btn" onclick="changeDate(1)">›</button>
+            </div>
+
+            <div id="content">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <div>加载中...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 当前选中的日期
+        let currentDate = new Date();
+        let chartInstance = null;
+
+        // 格式化日期为 YYYY-MM-DD
+        function formatDate(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        // 格式化日期显示
+        function formatDateDisplay(date) {
+            const today = new Date();
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+
+            const dateStr = formatDate(date);
+            const todayStr = formatDate(today);
+            const yesterdayStr = formatDate(yesterday);
+
+            if (dateStr === todayStr) return '今天';
+            if (dateStr === yesterdayStr) return '昨天';
+
+            const month = date.getMonth() + 1;
+            const day = date.getDate();
+            const weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+            const weekDay = weekDays[date.getDay()];
+
+            return `${month}月${day}日 ${weekDay}`;
+        }
+
+        // 切换日期
+        function changeDate(delta) {
+            currentDate.setDate(currentDate.getDate() + delta);
+            loadData();
+        }
+
+        // 生成图表颜色
+        function generateColors(count) {
+            const colors = [
+                '#007aff', // 蓝色
+                '#34c759', // 绿色
+                '#ff9500', // 橙色
+                '#ff3b30', // 红色
+                '#af52de', // 紫色
+                '#5856d6', // 靛蓝
+                '#ff2d55', // 粉红
+                '#5ac8fa', // 青色
+                '#ffcc00', // 黄色
+                '#8e8e93', // 灰色
+            ];
+            return colors.slice(0, count);
+        }
+
+        // 渲染图表
+        function renderChart(rootStats) {
+            const ctx = document.getElementById('statsChart').getContext('2d');
+
+            const labels = Object.values(rootStats).map(s => s.root_title);
+            const data = Object.values(rootStats).map(s => s.total_hours);
+            const colors = generateColors(labels.length);
+
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            chartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: colors,
+                        borderWidth: 0,
+                        hoverOffset: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '65%',
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                usePointStyle: true,
+                                pointStyle: 'circle',
+                                font: {
+                                    family: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
+                                    size: 13
+                                },
+                                color: '#1d1d1f'
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            padding: 12,
+                            cornerRadius: 8,
+                            titleFont: {
+                                family: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
+                                size: 14,
+                                weight: '600'
+                            },
+                            bodyFont: {
+                                family: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
+                                size: 13
+                            },
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.parsed;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                    return `${value.toFixed(1)} 小时 (${percentage}%)`;
+                                }
+                            }
+                        }
+                    },
+                    animation: {
+                        animateRotate: true,
+                        duration: 800,
+                        easing: 'easeOutQuart'
+                    }
+                }
+            });
+        }
+
+        // 渲染任务列表
+        function renderTaskList(cells, rootStats) {
+            const taskList = document.getElementById('taskList');
+
+            if (cells.length === 0) {
+                taskList.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">📋</div>
+                        <div class="empty-text">该日期没有完成的任务</div>
+                    </div>
+                `;
+                return;
+            }
+
+            // 生成颜色映射
+            const colors = generateColors(Object.keys(rootStats).length);
+            const rootColorMap = {};
+            Object.keys(rootStats).forEach((rootId, index) => {
+                rootColorMap[rootId] = colors[index % colors.length];
+            });
+
+            taskList.innerHTML = cells.map(cell => `
+                <div class="task-item">
+                    <div class="task-color" style="background-color: ${rootColorMap[cell.root_id]}"></div>
+                    <div class="task-info">
+                        <div class="task-title">${escapeHtml(cell.title)}</div>
+                        <div class="task-root">${escapeHtml(cell.root_title)}</div>
+                    </div>
+                    <div class="task-time">
+                        ${cell.actual_hours.toFixed(1)}<span class="task-time-unit">小时</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // HTML 转义
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // 加载数据
+        async function loadData() {
+            const dateStr = formatDate(currentDate);
+            document.getElementById('dateDisplay').textContent = formatDateDisplay(currentDate);
+            document.getElementById('content').innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <div>加载中...</div>
+                </div>
+            `;
+
+            try {
+                const response = await fetch(`/cell_manager/api/stats/completed-by-date?date=${dateStr}`);
+                const result = await response.json();
+
+                if (!result.success) {
+                    throw new Error('加载失败');
+                }
+
+                const hasData = result.cells.length > 0;
+
+                document.getElementById('content').innerHTML = `
+                    <div class="stats-overview">
+                        <div class="stat-item">
+                            <div class="stat-value">${result.total_count}</div>
+                            <div class="stat-label">完成任务</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">${result.total_hours.toFixed(1)}</div>
+                            <div class="stat-label">总用时（小时）</div>
+                        </div>
+                    </div>
+                    ${hasData ? `
+                        <div class="chart-container">
+                            <canvas id="statsChart"></canvas>
+                        </div>
+                    ` : ''}
+                    <div class="task-list-title">任务明细</div>
+                    <div class="task-list" id="taskList"></div>
+                `;
+
+                if (hasData) {
+                    renderChart(result.root_stats);
+                }
+                renderTaskList(result.cells, result.root_stats);
+
+            } catch (error) {
+                console.error('加载数据失败:', error);
+                document.getElementById('content').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">⚠️</div>
+                        <div class="empty-text">加载失败，请稍后重试</div>
+                    </div>
+                `;
+            }
+        }
+
+        // 初始化
+        loadData();
+    </script>
+</body>
+</html>

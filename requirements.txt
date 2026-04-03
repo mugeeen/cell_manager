@@ -1,2 +1,5 @@
 # Cell Manager 依赖
-# 本插件仅使用 Python 标准库，无需额外依赖
+# 本插件使用 Python 标准库，无需额外依赖
+# Web 可视化需要 FastAPI（AstrBot 已内置）
+# fastapi>=0.68.0
+# jinja2>=3.0.0

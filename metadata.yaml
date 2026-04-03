@@ -1,18 +1,22 @@
 name: astrbot_plugin_cell_manager
-desc: Cell Manager - 任务管理系统，支持无限递归的父子关系和漂亮的树形可视化，支持自然语言交互
+desc: Cell Manager - 任务管理系统，支持无限递归的父子关系、漂亮的树形可视化和 macOS 风格的时间统计界面，支持自然语言交互
 help: |
   📋 Cell Manager 任务管理系统
 
   【命令方式】
   /cell create <标题> [工作量] - 创建任务
-  /cell list - 列出所有任务
-  /cell tree [任务ID] - 显示任务树
+  /cell tree <任务ID> - 显示任务树
   /cell done <任务ID> - 完成任务
   /cell doing <任务ID> - 开始任务
+  /cell todo <任务ID> - 重置为待办
+  /cell urgent <任务ID> - 标记为紧急
   /cell add <父任务ID> <子任务标题> [工作量] - 添加子任务
   /cell delete <任务ID> - 删除任务
   /cell hours <任务ID> <小时数> - 记录实际用时
   /cell progress [任务ID] - 查看任务进度
+  /cell archive <任务ID> - 归档任务
+  /cell unarchive <任务ID> - 取消归档
+  /cell archive-all - 归档所有已完成任务
 
   【自然语言方式】
   直接说话即可，例如：
@@ -23,7 +27,27 @@ help: |
   - "开始执行abc123任务"
 
   状态图标:
-  [ ] 待办  [>] 进行中  [||] 暂停  [X] 已完成  [-] 已取消
-version: v1.1.0
+  [ ] 待办  [>] 进行中  [!] 紧急  [X] 已完成
+
+  【Web 可视化界面】
+  - React Flow 交互式任务图：/cell_manager/react-flow
+  - 时间统计仪表盘：/cell_manager/stats
+
+version: v1.2.0
 author: Cell Manager Team
 repo: https://github.com/your-repo/astrbot_plugin_cell_manager
+
+# 插件展示名
+display_name: Cell Manager 任务管理
+
+# 支持的 AstrBot 版本
+astrbot_version: ">=4.0.0"
+
+# 支持的消息平台
+support_platforms:
+  - aiocqhttp
+  - telegram
+  - wecom
+  - lark
+  - dingtalk
+  - discord

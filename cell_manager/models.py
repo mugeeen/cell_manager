@@ -19,12 +19,12 @@ class CellStatus(str, Enum):
     Cell 状态枚举
     
     跟踪任务的执行状态
+    简化状态：待办 -> 进行中 -> 紧急 -> 已完成
     """
     TODO = "todo"           # 待办，尚未开始
-    DOING = "doing"         # 进行中
-    PAUSED = "paused"       # 已暂停
-    DONE = "done"           # 已完成
-    CANCELLED = "cancelled" # 已取消
+    IN_PROGRESS = "in_progress"  # 进行中
+    URGENT = "urgent"       # 紧急
+    COMPLETED = "completed" # 已完成
 
 
 @dataclass
@@ -71,6 +71,7 @@ class Cell:
     
     # 时间跟踪
     created_at: datetime = field(default_factory=datetime.now)
+    completed_at: Optional[datetime] = None  # 完成时间
     deadline: Optional[datetime] = None  # 截止时间
     actual_hours: float = 0.0  # 实际用时（仅叶子节点有效）
     total_hours: float = 0.0  # 总用时（由子cell的actual_hours加和）
@@ -111,6 +112,7 @@ class Cell:
             'parent_id': self.parent_id,
             'children_ids': json.dumps(self.children_ids),
             'created_at': self.created_at.isoformat(),
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
             'deadline': self.deadline.isoformat() if self.deadline else None,
             'actual_hours': self.actual_hours,
             'total_hours': self.total_hours,
@@ -133,12 +135,35 @@ class Cell:
         Returns:
             Cell 实例
         """
+        # 状态迁移映射（旧状态 -> 新状态）
+        status_mapping = {
+            'done': 'completed',      # 旧: DONE -> 新: COMPLETED
+            'doing': 'in_progress',   # 旧: DOING -> 新: IN_PROGRESS
+            'paused': 'urgent',       # 旧: PAUSED -> 新: URGENT
+            'cancelled': 'todo',      # 旧: CANCELLED -> 新: TODO
+            # 新状态保持不变
+            'todo': 'todo',
+            'in_progress': 'in_progress',
+            'urgent': 'urgent',
+            'completed': 'completed'
+        }
+        
+        # 转换旧状态到新状态
+        raw_status = data['status']
+        mapped_status = status_mapping.get(raw_status, raw_status)
+        
+        try:
+            status = CellStatus(mapped_status)
+        except ValueError:
+            # 如果映射后的状态仍然无效，默认为 TODO
+            status = CellStatus.TODO
+        
         return cls(
             id=data['id'],
             title=data['title'],
             description=data['description'],
             level=data.get('level', 0),
-            status=CellStatus(data['status']),
+            status=status,
             priority=data['priority'],
             parent_id=data['parent_id'],
             children_ids=json.loads(data['children_ids']) if data['children_ids'] else [],
@@ -198,9 +223,10 @@ class Cell:
         """
         完成任务
         
-        将状态设置为 DONE
+        将状态设置为 COMPLETED 并记录完成时间
         """
-        self.status = CellStatus.DONE
+        self.status = CellStatus.COMPLETED
+        self.completed_at = datetime.now()
     
     def add_child(self, child_id: str) -> None:
         """
@@ -224,24 +250,19 @@ class Cell:
     
     def get_progress(self) -> float:
         """
-        获取任务进度百分比
+        获取任务进度百分比（仅用于叶子节点）
         
-        根据状态返回进度：
-        - TODO: 0%
-        - DOING/PAUSED: 50%
-        - DONE: 100%
+        简化规则：
+        - COMPLETED: 100%
+        - 其他状态: 0%
+        
+        非叶子节点的进度由 manager.get_progress() 递归计算
         
         Returns:
             进度百分比 0.0-100.0
         """
-        progress_map = {
-            CellStatus.TODO: 0.0,
-            CellStatus.DOING: 50.0,
-            CellStatus.PAUSED: 50.0,
-            CellStatus.DONE: 100.0,
-            CellStatus.CANCELLED: 0.0
-        }
-        return progress_map.get(self.status, 0.0)
+        # 叶子节点：只有 completed 才算完成
+        return 100.0 if self.status == CellStatus.COMPLETED else 0.0
     
     def __repr__(self) -> str:
         """字符串表示"""

@@ -85,6 +85,7 @@ class DatabaseManager:
                 parent_id TEXT,
                 children_ids TEXT DEFAULT '[]',
                 created_at TEXT NOT NULL,
+                completed_at TEXT,
                 deadline TEXT,
                 actual_hours REAL DEFAULT 0.0,
                 total_hours REAL DEFAULT 0.0,
@@ -132,12 +133,12 @@ class DatabaseManager:
             cursor.execute("""
                 INSERT INTO cells (
                     id, title, description, level, status, priority,
-                    parent_id, children_ids, created_at, deadline,
+                    parent_id, children_ids, created_at, completed_at, deadline,
                     actual_hours, total_hours, workload, total_workload,
                     tags, metadata
                 ) VALUES (
                     :id, :title, :description, :level, :status, :priority,
-                    :parent_id, :children_ids, :created_at, :deadline,
+                    :parent_id, :children_ids, :created_at, :completed_at, :deadline,
                     :actual_hours, :total_hours, :workload, :total_workload,
                     :tags, :metadata
                 )
@@ -200,6 +201,7 @@ class DatabaseManager:
                     priority = :priority,
                     parent_id = :parent_id,
                     children_ids = :children_ids,
+                    completed_at = :completed_at,
                     deadline = :deadline,
                     actual_hours = :actual_hours,
                     total_hours = :total_hours,
@@ -382,6 +384,63 @@ class DatabaseManager:
         except sqlite3.Error as e:
             print(f"获取统计信息失败: {e}")
             return {}
+    
+    def get_completed_leaf_cells_by_date(self, date_str: str) -> List[Cell]:
+        """
+        获取指定日期完成的叶子节点
+        
+        只返回 status='completed' 且 children_ids='[]' 的 Cell
+        
+        Args:
+            date_str: 日期字符串，格式为 'YYYY-MM-DD'
+            
+        Returns:
+            Cell 列表
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            # 查询指定日期完成的叶子节点
+            cursor.execute("""
+                SELECT * FROM cells
+                WHERE status = 'completed'
+                AND children_ids = '[]'
+                AND DATE(completed_at) = DATE(?)
+                ORDER BY completed_at DESC
+            """, (date_str,))
+            
+            rows = cursor.fetchall()
+            return [Cell.from_dict(dict(row)) for row in rows]
+        except sqlite3.Error as e:
+            print(f"获取已完成叶子节点失败: {e}")
+            return []
+    
+    def get_completed_dates(self) -> List[str]:
+        """
+        获取所有有完成记录的日期列表
+        
+        Returns:
+            日期字符串列表，格式为 ['YYYY-MM-DD', ...]
+        """
+        try:
+            conn = self.connect()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT DISTINCT DATE(completed_at) as date
+                FROM cells
+                WHERE status = 'completed'
+                AND children_ids = '[]'
+                AND completed_at IS NOT NULL
+                ORDER BY date DESC
+            """)
+            
+            rows = cursor.fetchall()
+            return [row['date'] for row in rows]
+        except sqlite3.Error as e:
+            print(f"获取完成日期列表失败: {e}")
+            return []
     
     def __enter__(self):
         """上下文管理器入口"""

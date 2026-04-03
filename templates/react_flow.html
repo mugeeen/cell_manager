@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cell Manager - React Flow</title>
+    
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom": "https://esm.sh/react-dom@18.2.0",
+            "@xyflow/react": "https://esm.sh/@xyflow/react@12.3.0?deps=react@18.2.0,react-dom@18.2.0",
+            "dagre": "https://esm.sh/dagre@0.8.5"
+        }
+    }
+    </script>
+    
+    <link rel="stylesheet" href="https://unpkg.com/@xyflow/react@12.3.0/dist/style.css" />
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background: #f5f5f5; }
+        #root { width: 100vw; height: 100vh; }
+        .custom-node { padding: 10px; border-radius: 8px; border: 2px solid #fff; background: white; min-width: 150px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer; transition: all 0.3s ease; }
+        .custom-node:hover { box-shadow: 0 4px 8px rgba(0,0,0,0.15); }
+        .custom-node.selected { border-color: #2196f3; box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.3); }
+        .custom-node.archived { border-style: dashed; opacity: 0.7; background: #f5f5f5; }
+        .node-header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+        .node-status { width: 12px; height: 12px; border-radius: 50%; }
+        .node-title { font-weight: 600; font-size: 14px; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .node-meta { font-size: 12px; color: #666; margin-top: 4px; }
+        .node-progress { font-size: 11px; color: #333; font-weight: 600; margin-top: 4px; text-align: right; }
+        .toolbar { position: fixed; top: 10px; left: 10px; z-index: 10; background: white; padding: 10px 15px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); display: flex; gap: 10px; align-items: center; }
+        .toolbar select, .toolbar button { padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; cursor: pointer; }
+        .toolbar button { background: #4caf50; color: white; border: none; }
+        .toolbar button:hover { background: #45a049; }
+        .toolbar label { display: flex; align-items: center; gap: 5px; font-size: 14px; cursor: pointer; }
+        .toolbar input[type="checkbox"] { cursor: pointer; }
+        .detail-panel { position: fixed; right: 10px; top: 10px; width: 300px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); padding: 20px; z-index: 10; max-height: 80vh; overflow-y: auto; }
+        .detail-panel h3 { margin-bottom: 15px; color: #333; border-bottom: 2px solid #2196f3; padding-bottom: 10px; }
+        .detail-item { margin-bottom: 12px; }
+        .detail-label { font-size: 12px; color: #666; margin-bottom: 4px; }
+        .detail-value { font-size: 14px; color: #333; font-weight: 500; }
+        .legend { position: fixed; left: 10px; bottom: 10px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); z-index: 10; }
+        .legend h4 { margin-bottom: 10px; font-size: 14px; }
+        .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12px; }
+        .legend-color { width: 12px; height: 12px; border-radius: 50%; }
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+        .modal { background: white; padding: 30px; border-radius: 8px; width: 400px; max-width: 90%; }
+        .modal h3 { margin-bottom: 20px; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; color: #666; font-size: 14px; }
+        .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        .modal-buttons { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+        .modal-buttons button { padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 14px; }
+        .btn-cancel { background: white; border: 1px solid #ddd; }
+        .btn-save { background: #4caf50; color: white; border: none; }
+        .btn-delete { background: #f44336; color: white; border: none; }
+        .btn-delete:hover { background: #d32f2f; }
+        .context-menu { position: fixed; background: white; border: 1px solid #ddd; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 1001; min-width: 150px; }
+        .context-menu-item { padding: 10px 15px; cursor: pointer; font-size: 14px; }
+        .context-menu-item:hover { background: #f5f5f5; }
+        .context-menu-divider { height: 1px; background: #eee; margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="module">
+        import React, { useState, useEffect, useCallback, useRef } from 'react';
+        import * as ReactDOM from 'react-dom';
+        import { ReactFlow, Background, Controls, MiniMap, useNodesState, useEdgesState, Handle, Position } from '@xyflow/react';
+        import dagre from 'dagre';
+        
+        // 简化状态系统：待办(灰) -> 进行中(蓝) -> 紧急(红) -> 已完成(绿)
+        const statusColors = { 'todo': '#9e9e9e', 'in_progress': '#2196f3', 'urgent': '#f44336', 'completed': '#4caf50' };
+        const statusLabels = { 'todo': '待办', 'in_progress': '进行中', 'urgent': '紧急', 'completed': '已完成' };
+        
+        const CustomNode = ({ data, selected }) => {
+            // 计算进度填充样式（只在非叶子节点显示）
+            const showProgress = !data.is_leaf && data.progress > 0;
+            const progressStyle = showProgress ? {
+                background: `linear-gradient(to right, ${data.color}33 ${data.progress}%, transparent ${data.progress}%)`
+            } : {};
+            
+            return React.createElement('div', {
+                className: `custom-node ${selected ? 'selected' : ''} ${data.is_archived ? 'archived' : ''}`,
+                style: { borderColor: data.color, ...progressStyle }
+            },
+                React.createElement(Handle, { type: 'target', position: Position.Top, style: { background: '#555' } }),
+                React.createElement('div', { className: 'node-header' },
+                    React.createElement('div', { className: 'node-status', style: { backgroundColor: data.color } }),
+                    React.createElement('div', { className: 'node-title', title: data.label }, data.label)
+                ),
+                data.workload > 0 && React.createElement('div', { className: 'node-meta' }, `⏱️ ${data.actual_hours || 0}/${data.workload}h`),
+                showProgress && React.createElement('div', { className: 'node-progress' }, `${Math.round(data.progress)}%`),
+                React.createElement(Handle, { type: 'source', position: Position.Bottom, style: { background: '#555' } })
+            );
+        };
+        
+        const nodeTypes = { custom: CustomNode };
+        
+        function App() {
+            const [nodes, setNodes, onNodesChange] = useNodesState([]);
+            const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+            const [selectedNode, setSelectedNode] = useState(null);
+            const [rootCells, setRootCells] = useState([]);
+            const [selectedRoot, setSelectedRoot] = useState('');
+            const [editModalOpen, setEditModalOpen] = useState(false);
+            const [createModalOpen, setCreateModalOpen] = useState(false);
+            const [editingNode, setEditingNode] = useState(null);
+            const [createParentId, setCreateParentId] = useState(null);
+            const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 });
+            const [contextMenuVisible, setContextMenuVisible] = useState(false);
+            const [contextMenuNode, setContextMenuNode] = useState(null);
+            const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+            const [nodeToDelete, setNodeToDelete] = useState(null);
+            const reactFlowWrapper = useRef(null);
+            // 使用 ref 来存储 ReactFlow 实例，而不是 useReactFlow hook
+            const reactFlowInstanceRef = useRef(null);
+            const [includeArchived, setIncludeArchived] = useState(false);
+            
+            useEffect(() => {
+                fetch('/cell_manager/api/cells/roots').then(r => r.json()).then(data => { if (data.success) setRootCells(data.data); });
+            }, []);
+            
+            const loadGraph = useCallback(() => {
+                let url = selectedRoot ? `/cell_manager/api/cells/graph?root_id=${selectedRoot}` : '/cell_manager/api/cells/graph';
+                if (includeArchived) {
+                    url += (url.includes('?') ? '&' : '?') + 'include_archived=true';
+                }
+                fetch(url).then(r => r.json()).then(result => {
+                    if (result.success) {
+                        const newNodes = result.data.nodes.map(n => ({
+                            id: n.data.id,
+                            type: 'custom',
+                            position: { x: n.position.x, y: n.position.y },
+                            data: n.data
+                        }));
+                        const newEdges = result.data.edges.map(e => ({
+                            id: e.data.id,
+                            source: e.data.source,
+                            target: e.data.target,
+                            animated: true,
+                            style: { stroke: '#999' },
+                            markerEnd: { type: 'arrowclosed', color: '#999', width: 15, height: 15 }
+                        }));
+                        setNodes(newNodes);
+                        setEdges(newEdges);
+                    }
+                });
+            }, [selectedRoot, includeArchived, setNodes, setEdges]);
+            
+            useEffect(() => { loadGraph(); }, [loadGraph]);
+            
+            const onConnect = useCallback((params) => {
+                // 从 A 拉线到 B，B 应该成为 A 的儿子
+                // params.source = A (父节点), params.target = B (子节点)
+                
+                // 乐观 UI：先本地添加连线，不刷新界面
+                const newEdge = {
+                    id: `edge-${params.source}-${params.target}`,
+                    source: params.source,
+                    target: params.target,
+                    animated: true,
+                    style: { stroke: '#999' },
+                    markerEnd: { type: 'arrowclosed', color: '#999', width: 15, height: 15 }
+                };
+                setEdges(eds => [...eds, newEdge]);
+                
+                // 后台发送移动请求
+                fetch(`/cell_manager/api/cells/${params.target}/move`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ new_parent_id: params.source })
+                }).then(r => r.json()).then(result => {
+                    if (!result.success) {
+                        // 失败则移除连线并提示
+                        setEdges(eds => eds.filter(e => e.id !== newEdge.id));
+                        alert('移动失败: ' + result.message);
+                    }
+                    // 成功则不刷新界面，保持乐观 UI 状态
+                }).catch(err => {
+                    // 网络错误：回滚
+                    setEdges(eds => eds.filter(e => e.id !== newEdge.id));
+                    alert('移动失败: ' + err.message);
+                });
+            }, [setEdges]);
+            
+            // 自动布局函数
+            const applyAutoLayout = useCallback(() => {
+                if (nodes.length === 0) return;
+                
+                // 创建 dagre 图
+                const g = new dagre.graphlib.Graph();
+                g.setDefaultEdgeLabel(() => ({}));
+                
+                // 设置布局方向（从上到下）
+                g.setGraph({ rankdir: 'TB', nodesep: 80, ranksep: 100 });
+                
+                // 添加节点（使用当前节点尺寸估计）
+                nodes.forEach(node => {
+                    g.setNode(node.id, { width: 170, height: 60 });
+                });
+                
+                // 添加边
+                edges.forEach(edge => {
+                    g.setEdge(edge.source, edge.target);
+                });
+                
+                // 计算布局
+                dagre.layout(g);
+                
+                // 更新节点位置
+                const layoutedNodes = nodes.map(node => {
+                    const nodeWithPosition = g.node(node.id);
+                    return {
+                        ...node,
+                        position: {
+                            x: nodeWithPosition.x - nodeWithPosition.width / 2,
+                            y: nodeWithPosition.y - nodeWithPosition.height / 2
+                        }
+                    };
+                });
+                
+                setNodes(layoutedNodes);
+                
+                // 适应视图
+                setTimeout(() => {
+                    if (reactFlowInstanceRef.current) {
+                        reactFlowInstanceRef.current.fitView({ padding: 0.2 });
+                    }
+                }, 50);
+            }, [nodes, edges, setNodes]);
+            
+            const onNodeClick = useCallback((_, node) => { setSelectedNode(node.data); }, []);
+            const onNodeDoubleClick = useCallback((_, node) => {
+                const nodeData = node.data || node;
+                setEditingNode({ ...nodeData });
+                setEditModalOpen(true);
+            }, []);
+            
+            const saveEdit = () => {
+                fetch(`/cell_manager/api/cells/${editingNode.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title: editingNode.title,
+                        description: editingNode.description,
+                        status: editingNode.status,
+                        workload: editingNode.workload,
+                        actual_hours: editingNode.actual_hours
+                    })
+                }).then(r => r.json()).then(result => { 
+                    if (result.success) { 
+                        setEditModalOpen(false); 
+                        loadGraph(); 
+                    } 
+                });
+            };
+            
+            // 乐观UI：创建节点时先本地添加，API成功后再更新id
+            const saveCreate = () => {
+                const tempId = `temp-${Date.now()}`;
+                const isCreatingRoot = !createParentId;
+                
+                // 1. 乐观地先添加到本地状态
+                const newNode = {
+                    id: tempId,
+                    type: 'custom',
+                    position: contextMenuPos,
+                    data: {
+                        id: tempId,
+                        label: editingNode.title,
+                        title: editingNode.title,
+                        description: editingNode.description || '',
+                        status: 'todo',
+                        color: statusColors['todo'],
+                        workload: parseFloat(editingNode.workload) || 0,
+                        actual_hours: 0,
+                        is_leaf: true,
+                        level: createParentId ? (selectedNode?.level || 0) + 1 : 0
+                    }
+                };
+                
+                // 如果是子节点，添加边
+                if (createParentId) {
+                    const newEdge = {
+                        id: `edge-${tempId}`,
+                        source: createParentId,
+                        target: tempId,
+                        animated: true,
+                        style: { stroke: '#999' }
+                    };
+                    setEdges(eds => [...eds, newEdge]);
+                }
+                
+                setNodes(nds => [...nds, newNode]);
+                setCreateModalOpen(false);
+                
+                // 2. 发送API请求
+                fetch('/cell_manager/api/cells', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        title: editingNode.title, 
+                        description: editingNode.description, 
+                        parent_id: createParentId, 
+                        workload: parseFloat(editingNode.workload) || 0 
+                    })
+                }).then(r => r.json()).then(result => { 
+                    if (result.success) { 
+                        // 3. 成功：更新临时节点的id为真实id
+                        setNodes(nds => nds.map(n => 
+                            n.id === tempId ? { 
+                                ...n, 
+                                id: result.data.id,
+                                data: { ...n.data, id: result.data.id }
+                            } : n
+                        ));
+                        setEdges(eds => eds.map(e => 
+                            e.target === tempId ? { ...e, target: result.data.id } : e
+                        ));
+                        
+                        // 如果在筛选视图下创建了根节点，更新根节点列表
+                        if (isCreatingRoot) {
+                            fetch('/cell_manager/api/cells/roots').then(r => r.json()).then(data => { 
+                                if (data.success) setRootCells(data.data); 
+                            });
+                        }
+                    } else {
+                        // 4. 失败：回滚，移除临时节点
+                        setNodes(nds => nds.filter(n => n.id !== tempId));
+                        setEdges(eds => eds.filter(e => e.target !== tempId));
+                        alert('创建失败: ' + result.message);
+                    }
+                }).catch(err => {
+                    // 网络错误：回滚
+                    setNodes(nds => nds.filter(n => n.id !== tempId));
+                    setEdges(eds => eds.filter(e => e.target !== tempId));
+                    alert('创建失败: ' + err.message);
+                });
+            };
+            
+            // 右键菜单处理
+            const onNodeContextMenu = useCallback((e, node) => {
+                e.preventDefault();
+                setContextMenuPos({ x: e.clientX, y: e.clientY });
+                setContextMenuNode(node);
+                setContextMenuVisible(true);
+            }, []);
+            
+            const onPaneContextMenu = useCallback((e) => {
+                e.preventDefault();
+                // 直接使用屏幕坐标，不转换
+                setContextMenuPos({ x: e.clientX, y: e.clientY });
+                setContextMenuNode(null);
+                setContextMenuVisible(true);
+            }, []);
+            
+            // 点击其他地方关闭右键菜单
+            useEffect(() => {
+                const handleClick = () => setContextMenuVisible(false);
+                if (contextMenuVisible) {
+                    document.addEventListener('click', handleClick);
+                    return () => document.removeEventListener('click', handleClick);
+                }
+            }, [contextMenuVisible]);
+            
+            // 打开创建弹窗
+            const openCreateModal = (parentId) => {
+                setCreateParentId(parentId);
+                setEditingNode({ title: '', description: '', workload: 0 });
+                setCreateModalOpen(true);
+                setContextMenuVisible(false);
+            };
+            
+            // 删除节点处理
+            const handleDeleteNode = (nodeData) => {
+                setNodeToDelete(nodeData);
+                setDeleteConfirmOpen(true);
+                setContextMenuVisible(false);
+            };
+            
+            const confirmDelete = () => {
+                if (!nodeToDelete) return;
+                
+                const nodeId = nodeToDelete.id;
+                
+                // 乐观删除：先从UI移除
+                setNodes(nds => nds.filter(n => n.id !== nodeId));
+                setEdges(eds => eds.filter(e => e.source !== nodeId && e.target !== nodeId));
+                setSelectedNode(null);
+                setDeleteConfirmOpen(false);
+                
+                // 发送删除请求
+                fetch(`/cell_manager/api/cells/${nodeId}`, {
+                    method: 'DELETE'
+                }).then(r => r.json()).then(result => {
+                    if (!result.success) {
+                        // 失败则刷新恢复
+                        alert('删除失败: ' + result.message);
+                        loadGraph();
+                    } else {
+                        // 更新根节点列表
+                        fetch('/cell_manager/api/cells/roots').then(r => r.json()).then(data => { 
+                            if (data.success) setRootCells(data.data); 
+                        });
+                    }
+                }).catch(err => {
+                    alert('删除失败: ' + err.message);
+                    loadGraph();
+                });
+            };
+            
+            return React.createElement('div', { ref: reactFlowWrapper, style: { width: '100vw', height: '100vh' } },
+                React.createElement('div', { className: 'toolbar' },
+                    React.createElement('select', { value: selectedRoot, onChange: (e) => setSelectedRoot(e.target.value) },
+                        React.createElement('option', { value: '' }, '全部根节点'),
+                        rootCells.map(cell => React.createElement('option', { key: cell.id, value: cell.id }, cell.title))
+                    ),
+                    React.createElement('button', { onClick: loadGraph }, '🔄 刷新'),
+                    React.createElement('button', { onClick: applyAutoLayout, style: { background: '#2196f3' } }, '📐 自动布局'),
+                    React.createElement('button', { onClick: () => window.location.href = '/cell_manager/stats', style: { background: '#ff9500' } }, '📊 统计'),
+                    React.createElement('button', {
+                        onClick: () => {
+                            fetch('/cell_manager/api/cells/archive-completed', { method: 'POST' })
+                                .then(r => r.json())
+                                .then(result => {
+                                    if (result.success) {
+                                        alert(`已归档 ${result.archived_count} 个完成的任务`);
+                                        loadGraph();
+                                    } else {
+                                        alert('归档失败: ' + result.message);
+                                    }
+                                })
+                                .catch(err => alert('归档失败: ' + err.message));
+                        },
+                        style: { background: '#9c27b0' }
+                    }, '📦 归档已完成'),
+                    React.createElement('label', null,
+                        React.createElement('input', {
+                            type: 'checkbox',
+                            checked: includeArchived,
+                            onChange: (e) => setIncludeArchived(e.target.checked)
+                        }),
+                        '显示已归档'
+                    )
+                ),
+                React.createElement(ReactFlow, {
+                    nodes, edges, onNodesChange, onEdgesChange, onConnect, onNodeClick, onNodeDoubleClick, onNodeContextMenu, onPaneContextMenu, nodeTypes, fitView: true, attributionPosition: 'bottom-left',
+                    onInit: (instance) => { reactFlowInstanceRef.current = instance; }
+                },
+                    React.createElement(Background),
+                    React.createElement(Controls),
+                    React.createElement(MiniMap, { nodeStrokeWidth: 3, zoomable: true, pannable: true })
+                ),
+                selectedNode && React.createElement('div', { className: 'detail-panel' },
+                    React.createElement('h3', null, selectedNode.is_leaf ? '📋 叶子任务详情' : '📋 汇总任务详情'),
+                    React.createElement('div', { className: 'detail-item' }, React.createElement('div', { className: 'detail-label' }, 'ID'), React.createElement('div', { className: 'detail-value' }, selectedNode.id)),
+                    React.createElement('div', { className: 'detail-item' }, React.createElement('div', { className: 'detail-label' }, '标题'), React.createElement('div', { className: 'detail-value' }, selectedNode.label)),
+                    React.createElement('div', { className: 'detail-item' }, React.createElement('div', { className: 'detail-label' }, '状态'), React.createElement('div', { className: 'detail-value' }, statusLabels[selectedNode.status] || selectedNode.status)),
+                    React.createElement('div', { className: 'detail-item' }, React.createElement('div', { className: 'detail-label' }, '层级'), React.createElement('div', { className: 'detail-value' }, selectedNode.level)),
+                    selectedNode.is_leaf ? React.createElement(React.Fragment, null,
+                        React.createElement('div', { className: 'detail-item' }, React.createElement('div', { className: 'detail-label' }, '预计工作量'), React.createElement('div', { className: 'detail-value' }, (selectedNode.workload || 0) + ' 小时')),
+                        React.createElement('div', { className: 'detail-item' }, React.createElement('div', { className: 'detail-label' }, '实际用时'), React.createElement('div', { className: 'detail-value' }, (selectedNode.actual_hours || 0) + ' 小时'))
+                    ) : React.createElement(React.Fragment, null,
+                        React.createElement('div', { className: 'detail-item' }, React.createElement('div', { className: 'detail-label' }, '总预计工作量'), React.createElement('div', { className: 'detail-value' }, (selectedNode.total_workload || 0) + ' 小时')),
+                        React.createElement('div', { className: 'detail-item' }, React.createElement('div', { className: 'detail-label' }, '总实际用时'), React.createElement('div', { className: 'detail-value' }, (selectedNode.total_hours || 0) + ' 小时'))
+                    ),
+                    selectedNode.description && React.createElement('div', { className: 'detail-item' }, React.createElement('div', { className: 'detail-label' }, '描述'), React.createElement('div', { className: 'detail-value' }, selectedNode.description)),
+                    // 删除按钮
+                    React.createElement('div', { className: 'detail-item', style: { marginTop: '20px', paddingTop: '15px', borderTop: '1px solid #eee' } },
+                        React.createElement('button', { 
+                            className: 'btn-delete', 
+                            style: { width: '100%', padding: '10px' },
+                            onClick: () => handleDeleteNode(selectedNode)
+                        }, '🗑️ 删除节点')
+                    )
+                ),
+                React.createElement('div', { className: 'legend' },
+                    React.createElement('h4', null, '状态图例'),
+                    Object.entries(statusLabels).map(([key, label]) => React.createElement('div', { key, className: 'legend-item' }, React.createElement('div', { className: 'legend-color', style: { background: statusColors[key] } }), React.createElement('span', null, label))),
+                    React.createElement('h4', { style: { marginTop: '15px' } }, '操作说明'),
+                    React.createElement('div', { className: 'legend-item' }, React.createElement('span', null, '🖱️ 左键点击'), React.createElement('span', null, '查看详情')),
+                    React.createElement('div', { className: 'legend-item' }, React.createElement('span', null, '✏️ 双击节点'), React.createElement('span', null, '编辑节点')),
+                    React.createElement('div', { className: 'legend-item' }, React.createElement('span', null, '🔗 拖拽连接点'), React.createElement('span', null, '建立关系')),
+                    React.createElement('div', { className: 'legend-item' }, React.createElement('span', null, '🖱️🖱️ 右键点击'), React.createElement('span', null, '打开菜单'))
+                ),
+                // 右键菜单
+                contextMenuVisible && React.createElement('div', { 
+                    className: 'context-menu', 
+                    style: { left: contextMenuPos.x, top: contextMenuPos.y }
+                },
+                    contextMenuNode ? React.createElement(React.Fragment, null,
+                        React.createElement('div', { className: 'context-menu-item', onClick: () => openCreateModal(contextMenuNode.data.id) }, `➕ 在 "${contextMenuNode.data.label}" 下创建子任务`),
+                        React.createElement('div', { className: 'context-menu-divider' }),
+                        React.createElement('div', { className: 'context-menu-item', onClick: () => { setEditingNode({ ...contextMenuNode.data }); setEditModalOpen(true); setContextMenuVisible(false); } }, '✏️ 编辑节点'),
+                        contextMenuNode.data.is_archived
+                            ? React.createElement('div', { className: 'context-menu-item', onClick: () => {
+                                fetch(`/cell_manager/api/cells/${contextMenuNode.data.id}/unarchive`, { method: 'POST' })
+                                    .then(r => r.json())
+                                    .then(result => {
+                                        if (result.success) {
+                                            loadGraph();
+                                            setContextMenuVisible(false);
+                                        } else {
+                                            alert('取消归档失败: ' + result.message);
+                                        }
+                                    })
+                                    .catch(err => alert('取消归档失败: ' + err.message));
+                            } }, '📤 取消归档')
+                            : React.createElement('div', { className: 'context-menu-item', onClick: () => {
+                                fetch(`/cell_manager/api/cells/${contextMenuNode.data.id}/archive`, { method: 'POST' })
+                                    .then(r => r.json())
+                                    .then(result => {
+                                        if (result.success) {
+                                            loadGraph();
+                                            setContextMenuVisible(false);
+                                        } else {
+                                            alert('归档失败: ' + result.message);
+                                        }
+                                    })
+                                    .catch(err => alert('归档失败: ' + err.message));
+                            } }, '📦 归档任务'),
+                        React.createElement('div', { className: 'context-menu-item', onClick: () => handleDeleteNode(contextMenuNode.data) }, '🗑️ 删除节点')
+                    ) : React.createElement(React.Fragment, null,
+                        React.createElement('div', { className: 'context-menu-item', onClick: () => openCreateModal(null) }, '➕ 创建根任务')
+                    )
+                ),
+                // 编辑弹窗
+                editModalOpen && editingNode && React.createElement('div', { className: 'modal-overlay', onClick: () => setEditModalOpen(false) },
+                    React.createElement('div', { className: 'modal', onClick: (e) => e.stopPropagation() },
+                        React.createElement('h3', null, editingNode.is_leaf ? '✏️ 编辑叶子任务' : '✏️ 编辑汇总任务'),
+                        React.createElement('div', { className: 'form-group' }, React.createElement('label', null, '标题'), React.createElement('input', { type: 'text', value: editingNode.title || '', onChange: (e) => setEditingNode({ ...editingNode, title: e.target.value }) })),
+                        React.createElement('div', { className: 'form-group' }, React.createElement('label', null, '描述'), React.createElement('textarea', { rows: 3, value: editingNode.description || '', onChange: (e) => setEditingNode({ ...editingNode, description: e.target.value }) })),
+                        React.createElement('div', { className: 'form-group' }, React.createElement('label', null, '状态'), React.createElement('select', { value: editingNode.status || 'todo', onChange: (e) => setEditingNode({ ...editingNode, status: e.target.value }) }, Object.entries(statusLabels).map(([key, label]) => React.createElement('option', { key, value: key }, label)))),
+                        editingNode.is_leaf ? React.createElement(React.Fragment, null,
+                            React.createElement('div', { className: 'form-group' }, React.createElement('label', null, '预计工作量（小时）'), React.createElement('input', { type: 'number', step: '0.5', min: '0', value: editingNode.workload || 0, onChange: (e) => setEditingNode({ ...editingNode, workload: parseFloat(e.target.value) || 0 }) })),
+                            React.createElement('div', { className: 'form-group' }, React.createElement('label', null, '实际用时（小时）'), React.createElement('input', { type: 'number', step: '0.5', min: '0', value: editingNode.actual_hours || 0, onChange: (e) => setEditingNode({ ...editingNode, actual_hours: parseFloat(e.target.value) || 0 }) }))
+                        ) : React.createElement(React.Fragment, null,
+                            React.createElement('div', { className: 'form-group' }, React.createElement('label', null, '总预计工作量（自动汇总）'), React.createElement('div', { style: { padding: '8px', background: '#f5f5f5', borderRadius: '4px' } }, (editingNode.total_workload || 0) + ' 小时')),
+                            React.createElement('div', { className: 'form-group' }, React.createElement('label', null, '总实际用时（自动汇总）'), React.createElement('div', { style: { padding: '8px', background: '#f5f5f5', borderRadius: '4px' } }, (editingNode.total_hours || 0) + ' 小时'))
+                        ),
+                        React.createElement('div', { className: 'modal-buttons' }, React.createElement('button', { className: 'btn-cancel', onClick: () => setEditModalOpen(false) }, '取消'), React.createElement('button', { className: 'btn-save', onClick: saveEdit }, '保存'))
+                    )
+                ),
+                // 创建弹窗
+                createModalOpen && React.createElement('div', { className: 'modal-overlay', onClick: () => setCreateModalOpen(false) },
+                    React.createElement('div', { className: 'modal', onClick: (e) => e.stopPropagation() },
+                        React.createElement('h3', null, createParentId ? '➕ 创建子任务' : '➕ 创建根任务'),
+                        React.createElement('div', { className: 'form-group' }, React.createElement('label', null, '标题 *'), React.createElement('input', { type: 'text', value: editingNode.title, onChange: (e) => setEditingNode({ ...editingNode, title: e.target.value }), placeholder: '输入任务标题' })),
+                        React.createElement('div', { className: 'form-group' }, React.createElement('label', null, '描述'), React.createElement('textarea', { rows: 3, value: editingNode.description || '', onChange: (e) => setEditingNode({ ...editingNode, description: e.target.value }), placeholder: '输入任务描述（可选）' })),
+                        React.createElement('div', { className: 'form-group' }, React.createElement('label', null, '预计工作量（小时）'), React.createElement('input', { type: 'number', step: '0.5', min: '0', value: editingNode.workload, onChange: (e) => setEditingNode({ ...editingNode, workload: e.target.value }) })),
+                        React.createElement('div', { className: 'modal-buttons' }, React.createElement('button', { className: 'btn-cancel', onClick: () => setCreateModalOpen(false) }, '取消'), React.createElement('button', { className: 'btn-save', onClick: saveCreate }, '创建'))
+                    )
+                ),
+                // 删除确认弹窗
+                deleteConfirmOpen && nodeToDelete && React.createElement('div', { className: 'modal-overlay', onClick: () => setDeleteConfirmOpen(false) },
+                    React.createElement('div', { className: 'modal', onClick: (e) => e.stopPropagation(), style: { width: '350px' } },
+                        React.createElement('h3', null, '🗑️ 确认删除'),
+                        React.createElement('p', { style: { marginBottom: '20px', color: '#666' } }, 
+                            `确定要删除节点 "${nodeToDelete.label}" 吗？`,
+                            nodeToDelete.is_leaf ? null : React.createElement('br', null), 
+                            nodeToDelete.is_leaf ? null : React.createElement('span', { style: { color: '#f44336', fontSize: '12px' } }, '该节点有子节点，删除将同时删除所有子节点')
+                        ),
+                        React.createElement('div', { className: 'modal-buttons' }, 
+                            React.createElement('button', { className: 'btn-cancel', onClick: () => setDeleteConfirmOpen(false) }, '取消'), 
+                            React.createElement('button', { className: 'btn-delete', onClick: confirmDelete }, '确认删除')
+                        )
+                    )
+                )
+            );
+        }
+        
+        const container = document.getElementById('root');
+        if (ReactDOM.createRoot) {
+            const root = ReactDOM.createRoot(container);
+            root.render(React.createElement(App));
+        } else {
+            ReactDOM.render(React.createElement(App), container);
+        }
+    </script>
+</body>
+</html>

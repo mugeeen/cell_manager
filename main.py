@@ -11,9 +11,13 @@ from typing import Optional
 from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star
 from astrbot.api import logger
+from astrbot.core.utils.astrbot_path import get_astrbot_plugin_data_path
 
 # 导入 Cell Manager 核心模块
 from .cell_manager import CellManager, DatabaseManager, CellStatus, ViewMode, visualize_tree
+
+# 导入 Web 路由
+from .web import setup_routes
 
 
 class CellManagerPlugin(Star):
@@ -22,8 +26,10 @@ class CellManagerPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
         
-        # 初始化数据库
-        data_dir = os.path.join(os.path.dirname(__file__), 'data')
+        # 初始化数据库 - 使用 AstrBot 的 plugin_data 目录
+        # 这样数据不会随插件更新/重装而丢失
+        plugin_data_dir = get_astrbot_plugin_data_path()
+        data_dir = os.path.join(plugin_data_dir, 'cell_manager')
         os.makedirs(data_dir, exist_ok=True)
         db_path = os.path.join(data_dir, 'cells.db')
         
@@ -34,7 +40,22 @@ class CellManagerPlugin(Star):
         # 注册 LLM Tools（让 AI 可以通过自然语言调用）
         # 使用装饰器方式自动注册，无需手动调用
         
+        # 注册 Web 路由（如果 AstrBot 支持）
+        self._setup_web_routes()
+        
         logger.info(f"Cell Manager 插件已初始化，数据库: {db_path}")
+    
+    def _setup_web_routes(self):
+        """设置 Web 路由"""
+        try:
+            # 获取 AstrBot 的 Quart/FastAPI 应用
+            if hasattr(self.context, 'app') and self.context.app:
+                setup_routes(self.context.app, self.manager, self.db)
+                logger.info("Cell Manager Web 可视化已注册: /cell_manager/visualizer")
+            else:
+                logger.warning("AstrBot 应用实例不可用，Web 可视化功能未启用")
+        except Exception as e:
+            logger.warning(f"Web 路由注册失败: {e}")
     
     async def terminate(self):
         """插件卸载时调用"""
@@ -56,14 +77,14 @@ class CellManagerPlugin(Star):
 /cell done <任务ID> - 标记任务为已完成
 /cell doing <任务ID> - 标记任务为进行中
 /cell todo <任务ID> - 标记任务为待办
-/cell pause <任务ID> - 暂停任务
+/cell urgent <任务ID> - 标记任务为紧急
 /cell add <父任务ID> <子任务标题> [工作量] - 添加子任务
 /cell delete <任务ID> - 删除任务
 /cell hours <任务ID> <小时数> - 记录实际用时
 /cell progress [任务ID] - 查看任务进度
 
 状态图标:
-[ ] 待办  [>] 进行中  [||] 暂停  [X] 已完成  [-] 已取消
+[ ] 待办  [>] 进行中  [!] 紧急  [X] 已完成
 """
         yield event.plain_result(help_text)
     
@@ -80,25 +101,6 @@ class CellManagerPlugin(Star):
             yield event.plain_result(result)
         except Exception as e:
             yield event.plain_result(f"❌ 创建失败: {str(e)}")
-    
-    @filter.command("cell_list")
-    async def list_cells(self, event: AstrMessageEvent):
-        '''列出所有根任务'''
-        try:
-            # 获取所有没有父节点的任务（根任务）
-            all_cells = []
-            # 这里需要添加一个获取所有根任务的方法
-            # 暂时使用简单的查询
-            result = "📋 根任务列表:\n"
-            result += "-" * 40 + "\n"
-            
-            # 由于没有直接的 get_root_cells 方法，我们暂时显示帮助
-            result += "使用 /cell tree 查看任务树\n"
-            result += "或使用 /cell create 创建新任务"
-            
-            yield event.plain_result(result)
-        except Exception as e:
-            yield event.plain_result(f"❌ 查询失败: {str(e)}")
     
     @filter.command("cell_tree")
     async def show_tree(self, event: AstrMessageEvent, cell_id: str = ""):
@@ -129,7 +131,7 @@ class CellManagerPlugin(Star):
     async def mark_done(self, event: AstrMessageEvent, cell_id: str):
         '''标记任务为已完成'''
         try:
-            success = self.manager.update_cell(cell_id, status=CellStatus.DONE)
+            success = self.manager.update_cell(cell_id, status=CellStatus.COMPLETED)
             if success:
                 # 自动更新进度
                 progress = self.manager.get_progress(cell_id)
@@ -143,7 +145,7 @@ class CellManagerPlugin(Star):
     async def mark_doing(self, event: AstrMessageEvent, cell_id: str):
         '''标记任务为进行中'''
         try:
-            success = self.manager.update_cell(cell_id, status=CellStatus.DOING)
+            success = self.manager.update_cell(cell_id, status=CellStatus.IN_PROGRESS)
             if success:
                 yield event.plain_result(f"▶️ 任务已开始！")
             else:
@@ -163,13 +165,13 @@ class CellManagerPlugin(Star):
         except Exception as e:
             yield event.plain_result(f"❌ 操作失败: {str(e)}")
     
-    @filter.command("cell_pause")
-    async def mark_paused(self, event: AstrMessageEvent, cell_id: str):
-        '''暂停任务'''
+    @filter.command("cell_urgent")
+    async def mark_urgent(self, event: AstrMessageEvent, cell_id: str):
+        '''标记任务为紧急'''
         try:
-            success = self.manager.update_cell(cell_id, status=CellStatus.PAUSED)
+            success = self.manager.update_cell(cell_id, status=CellStatus.URGENT)
             if success:
-                yield event.plain_result(f"⏸️ 任务已暂停！")
+                yield event.plain_result(f"🚨 任务已标记为紧急！")
             else:
                 yield event.plain_result(f"❌ 未找到任务: {cell_id}")
         except Exception as e:
@@ -282,7 +284,7 @@ class CellManagerPlugin(Star):
             cell_id(string): 任务ID
         '''
         try:
-            success = self.manager.update_cell(cell_id, status=CellStatus.DONE)
+            success = self.manager.update_cell(cell_id, status=CellStatus.COMPLETED)
             if success:
                 progress = self.manager.get_progress(cell_id)
                 yield event.plain_result(f"✅ 任务已标记为完成！当前进度: {progress:.1f}%")
@@ -362,10 +364,85 @@ class CellManagerPlugin(Star):
             cell_id(string): 任务ID
         '''
         try:
-            success = self.manager.update_cell(cell_id, status=CellStatus.DOING)
+            success = self.manager.update_cell(cell_id, status=CellStatus.IN_PROGRESS)
             if success:
                 yield event.plain_result(f"▶️ 任务已开始！")
             else:
                 yield event.plain_result(f"❌ 未找到任务: {cell_id}")
         except Exception as e:
             yield event.plain_result(f"❌ 操作失败: {str(e)}")
+    
+    @filter.llm_tool("cell_list_tasks")
+    async def llm_list_tasks(self, event: AstrMessageEvent) -> MessageEventResult:
+        '''列出所有根任务。当用户想要查看所有任务、列出任务、有什么任务时调用。
+        
+        这是获取任务ID的主要方式。在需要操作任务前，先调用此工具获取可用的任务ID。
+        '''
+        try:
+            root_cells = self.manager.get_root_cells()
+            
+            if not root_cells:
+                yield event.plain_result("📭 暂无任务。使用 cell_create_task 创建新任务。")
+                return
+            
+            result = "📋 任务列表:\n\n"
+            
+            # 简化状态图标
+            status_icons = {
+                CellStatus.TODO: "[ ]",
+                CellStatus.IN_PROGRESS: "[>]",
+                CellStatus.URGENT: "[!]",
+                CellStatus.COMPLETED: "[X]"
+            }
+            
+            for cell in root_cells:
+                icon = status_icons.get(cell.status, "[ ]")
+                progress = cell.get_progress()
+                result += f"{icon} {cell.title}\n"
+                result += f"   ID: {cell.id} | 进度: {progress:.0f}%"
+                if cell.workload > 0:
+                    result += f" | 工作量: {cell.workload:.1f}h"
+                result += "\n\n"
+            
+            yield event.plain_result(result.strip())
+        except Exception as e:
+            yield event.plain_result(f"❌ 查询失败: {str(e)}")
+    
+    @filter.llm_tool("cell_search_tasks")
+    async def llm_search_tasks(self, event: AstrMessageEvent, keyword: str) -> MessageEventResult:
+        '''搜索任务。当用户提到查找任务、搜索某个任务、找某个任务时调用。
+        
+        通过关键词搜索任务标题和描述，帮助用户找到特定任务。
+        
+        Args:
+            keyword(string): 搜索关键词
+        '''
+        try:
+            cells = self.manager.search_cells(keyword)
+            
+            if not cells:
+                yield event.plain_result(f"🔍 未找到包含 '{keyword}' 的任务")
+                return
+            
+            result = f"🔍 搜索结果 ({len(cells)} 个):\n\n"
+            
+            # 简化状态图标
+            status_icons = {
+                CellStatus.TODO: "[ ]",
+                CellStatus.IN_PROGRESS: "[>]",
+                CellStatus.URGENT: "[!]",
+                CellStatus.COMPLETED: "[X]"
+            }
+            
+            for cell in cells:
+                icon = status_icons.get(cell.status, "[ ]")
+                progress = cell.get_progress()
+                result += f"{icon} {cell.title}\n"
+                result += f"   ID: {cell.id} | 进度: {progress:.0f}%"
+                if cell.parent_id:
+                    result += f" | 父任务: {cell.parent_id[:8]}..."
+                result += "\n\n"
+            
+            yield event.plain_result(result.strip())
+        except Exception as e:
+            yield event.plain_result(f"❌ 搜索失败: {str(e)}")
