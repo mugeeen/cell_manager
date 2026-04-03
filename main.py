@@ -84,13 +84,19 @@ class CellManagerPlugin(Star):
             # 设置路由
             setup_routes(self._web_app, self.manager, self.db)
             
-            # 使用 AstrBot 的 register_task 注册启动任务（参考 LivingMemory）
-            self.context.register_task(self._start_web_server_async(), "启动 Cell Manager Web 服务器")
+            # 使用 AstrBot 的 register_task 注册启动任务
+            # 注意：register_task 接受一个可调用对象，不是协程对象
+            self.context.register_task(self._start_web_server_task(), "启动 Cell Manager Web 服务器")
             
         except Exception as e:
             logger.error(f"设置 Web 应用失败: {e}")
             import traceback
             logger.error(traceback.format_exc())
+    
+    async def _start_web_server_task(self):
+        """Web 服务器启动任务（包装器）"""
+        logger.info(f"正在启动 Cell Manager Web 服务器，端口: {self.web_port}")
+        await self._start_web_server_async()
     
     async def _start_web_server_async(self):
         """异步启动 Web 服务器"""
