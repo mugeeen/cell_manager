@@ -86,29 +86,29 @@ class CellManagerPlugin(Star):
             # 设置路由
             setup_routes(app, self.manager, self.db)
             
-            # 启动 uvicorn 服务器（在后台线程中）
-            import threading
+            # 使用 asyncio 创建后台任务启动 uvicorn（参考 LivingMemory 插件）
+            async def run_server():
+                config = uvicorn.Config(
+                    app=app,
+                    host="0.0.0.0",
+                    port=self.web_port,
+                    log_level="warning",
+                    loop="asyncio",
+                )
+                server = uvicorn.Server(config)
+                await server.serve()
             
-            def run_server():
-                try:
-                    uvicorn.run(
-                        app,
-                        host="0.0.0.0",
-                        port=self.web_port,
-                        log_level="warning"
-                    )
-                except Exception as e:
-                    logger.error(f"Web 服务器运行出错: {e}")
-            
-            # 在后台线程启动服务器
-            server_thread = threading.Thread(target=run_server, daemon=True)
-            server_thread.start()
+            # 创建后台任务
+            import asyncio
+            asyncio.create_task(run_server())
             
             logger.info(f"Cell Manager Web 服务器已启动: http://localhost:{self.web_port}/cell_manager/react-flow")
             logger.info(f"时间统计界面: http://localhost:{self.web_port}/cell_manager/stats")
             
         except Exception as e:
             logger.error(f"启动 Web 服务器失败: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
     
     async def terminate(self):
         """插件卸载时调用"""
