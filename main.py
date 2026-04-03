@@ -7,6 +7,7 @@ Cell Manager - AstrBot 插件
 
 import os
 import asyncio
+import socket
 from typing import Optional
 
 from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
@@ -53,7 +54,7 @@ class CellManagerPlugin(Star):
         # Web 服务器相关
         self.web_server = None
         self.web_server_task = None
-        self.web_port = 8080  # 默认端口，可以在配置中修改
+        self.web_port = 8081  # 默认端口 8081，避免与其他插件冲突
         
         # 注册 LLM Tools（让 AI 可以通过自然语言调用）
         # 使用装饰器方式自动注册，无需手动调用
