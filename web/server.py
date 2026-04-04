@@ -139,16 +139,16 @@ class WebUIServer:
                     for root in roots:
                         add_cell_to_graph(root)
                 
-                return {"nodes": nodes, "edges": edges}
+                return {"success": True, "data": {"nodes": nodes, "edges": edges}}
             except Exception as e:
-                raise HTTPException(status_code=500, detail=str(e))
+                return {"success": False, "message": str(e)}
         
         @self._app.get("/api/cells/roots")
         async def api_get_root_cells():
             """获取根节点列表"""
             try:
                 roots = self.manager.get_root_cells()
-                return [
+                data = [
                     {
                         "id": cell.id,
                         "title": cell.title,
@@ -158,8 +158,9 @@ class WebUIServer:
                     }
                     for cell in roots
                 ]
+                return {"success": True, "data": data}
             except Exception as e:
-                raise HTTPException(status_code=500, detail=str(e))
+                return {"success": False, "message": str(e)}
         
         @self._app.get("/api/cells/{cell_id}")
         async def api_get_cell_detail(cell_id: str):
@@ -206,15 +207,18 @@ class WebUIServer:
                 cell = self.manager.create_cell(title=title, effort=effort, parent_id=parent_id)
                 
                 return {
-                    "id": cell.id,
-                    "title": cell.title,
-                    "status": cell.status.value if hasattr(cell.status, 'value') else str(cell.status),
-                    "workload": cell.workload
+                    "success": True,
+                    "data": {
+                        "id": cell.id,
+                        "title": cell.title,
+                        "status": cell.status.value if hasattr(cell.status, 'value') else str(cell.status),
+                        "workload": cell.workload
+                    }
                 }
             except HTTPException:
                 raise
             except Exception as e:
-                raise HTTPException(status_code=500, detail=str(e))
+                return {"success": False, "message": str(e)}
         
         @self._app.put("/api/cells/{cell_id}")
         async def api_update_cell(cell_id: str, request: Request):
@@ -227,15 +231,18 @@ class WebUIServer:
                     raise HTTPException(status_code=404, detail="任务不存在")
                 
                 return {
-                    "id": cell.id,
-                    "title": cell.title,
-                    "status": cell.status.value if hasattr(cell.status, 'value') else str(cell.status),
-                    "progress": cell.progress
+                    "success": True,
+                    "data": {
+                        "id": cell.id,
+                        "title": cell.title,
+                        "status": cell.status.value if hasattr(cell.status, 'value') else str(cell.status),
+                        "progress": cell.progress
+                    }
                 }
             except HTTPException:
                 raise
             except Exception as e:
-                raise HTTPException(status_code=500, detail=str(e))
+                return {"success": False, "message": str(e)}
         
         @self._app.delete("/api/cells/{cell_id}")
         async def api_delete_cell(cell_id: str):
