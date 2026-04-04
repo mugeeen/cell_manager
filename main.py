@@ -51,20 +51,16 @@ class CellManagerPlugin(Star):
     def _register_webui(self):
         """注册 WebUI 路由到 AstrBot"""
         try:
-            self.webui_handler = WebUIHandler(self.manager, self.db)
-            
-            # 尝试使用 register_web_route (AstrBot >= 4.0)
-            # 如果不可用，则使用 register_web_api
-            if hasattr(self.context, 'register_web_route'):
-                register_func = self.context.register_web_route
-            elif hasattr(self.context, 'register_web_api'):
-                register_func = self.context.register_web_api
-            else:
-                logger.warning("⚠️ AstrBot 不支持 WebUI 路由注册，跳过 WebUI 初始化")
+            # 检查 AstrBot 是否支持 register_web_route
+            if not hasattr(self.context, 'register_web_route'):
+                logger.warning("⚠️ 当前 AstrBot 版本不支持 register_web_route，WebUI 功能不可用")
+                logger.info("💡 请升级到 AstrBot >= 4.0 以使用 WebUI 功能")
                 return
             
+            self.webui_handler = WebUIHandler(self.manager, self.db)
+            
             # 注册主页面路由
-            register_func(
+            self.context.register_web_route(
                 path="/cell_manager",
                 method="GET",
                 handler=self.webui_handler.serve_react_flow,
@@ -72,7 +68,7 @@ class CellManagerPlugin(Star):
             )
             
             # 注册统计页面
-            register_func(
+            self.context.register_web_route(
                 path="/cell_manager/stats",
                 method="GET",
                 handler=self.webui_handler.serve_stats,
@@ -80,84 +76,84 @@ class CellManagerPlugin(Star):
             )
             
             # 注册 API 路由
-            register_func(
+            self.context.register_web_route(
                 path="/cell_manager/api/cells/graph",
                 method="GET",
                 handler=self.webui_handler.api_get_cells_graph,
                 name="获取任务图形数据"
             )
             
-            register_func(
+            self.context.register_web_route(
                 path="/cell_manager/api/cells/roots",
                 method="GET",
                 handler=self.webui_handler.api_get_root_cells,
                 name="获取根节点列表"
             )
             
-            register_func(
+            self.context.register_web_route(
                 path="/cell_manager/api/cells/{cell_id}",
                 method="GET",
                 handler=self.webui_handler.api_get_cell_detail,
                 name="获取任务详情"
             )
             
-            register_func(
+            self.context.register_web_route(
                 path="/cell_manager/api/cells/{cell_id}",
                 method="PUT",
                 handler=self.webui_handler.api_update_cell,
                 name="更新任务"
             )
             
-            register_func(
+            self.context.register_web_route(
                 path="/cell_manager/api/cells",
                 method="POST",
                 handler=self.webui_handler.api_create_cell,
                 name="创建任务"
             )
             
-            register_func(
+            self.context.register_web_route(
                 path="/cell_manager/api/cells/{cell_id}/move",
                 method="POST",
                 handler=self.webui_handler.api_move_cell,
                 name="移动任务"
             )
             
-            register_func(
+            self.context.register_web_route(
                 path="/cell_manager/api/cells/{cell_id}",
                 method="DELETE",
                 handler=self.webui_handler.api_delete_cell,
                 name="删除任务"
             )
             
-            register_func(
+            self.context.register_web_route(
                 path="/cell_manager/api/stats/completed-dates",
                 method="GET",
                 handler=self.webui_handler.api_get_completed_dates,
                 name="获取完成日期列表"
             )
             
-            register_func(
+            self.context.register_web_route(
                 path="/cell_manager/api/stats/completed-by-date",
                 method="GET",
                 handler=self.webui_handler.api_get_completed_by_date,
                 name="获取指定日期完成的任务"
             )
             
-            register_func(
+            self.context.register_web_route(
                 path="/cell_manager/api/cells/archive-completed",
                 method="POST",
                 handler=self.webui_handler.api_archive_completed_cells,
                 name="归档所有已完成任务"
             )
             
-            register_func(
+            self.context.register_web_route(
                 path="/cell_manager/api/cells/{cell_id}/archive",
                 method="POST",
                 handler=self.webui_handler.api_archive_cell,
                 name="归档任务"
             )
             
-            register_func(
+            self.context.register_web_route(
                 path="/cell_manager/api/cells/{cell_id}/unarchive",
                 method="POST",
                 handler=self.webui_handler.api_unarchive_cell,
