@@ -284,7 +284,7 @@
 </head>
 <body>
     <div class="container">
-        <a href="/cell_manager/react-flow" class="back-link">
+        <a href="." class="back-link">
             ← 返回任务视图
         </a>
 
@@ -491,7 +491,7 @@
             `;
 
             try {
-                const response = await fetch(`/cell_manager/api/stats/completed-by-date?date=${dateStr}`);
+                const response = await fetch(`api/stats/completed-by-date?date=${dateStr}`);
                 const result = await response.json();
 
                 if (!result.success) {

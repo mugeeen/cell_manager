@@ -6,12 +6,10 @@ Cell Manager - AstrBot 插件
 """
 
 import os
-import asyncio
-import socket
-from typing import Optional
+from typing import Optional, Any
 
 from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
-from astrbot.api.star import Context, Star
+from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
 from astrbot.core.utils.astrbot_path import get_astrbot_plugin_data_path
 
@@ -19,29 +17,18 @@ from astrbot.core.utils.astrbot_path import get_astrbot_plugin_data_path
 from .cell_manager import CellManager, DatabaseManager, CellStatus, ViewMode, visualize_tree
 
 # 导入 Web 路由
-from .web import setup_routes
-
-# 导入 FastAPI 相关（用于独立 Web 服务器）
-try:
-    from fastapi import FastAPI
-    from fastapi.staticfiles import StaticFiles
-    from fastapi.responses import HTMLResponse
-    from fastapi.middleware.cors import CORSMiddleware
-    import uvicorn
-    WEB_SERVER_AVAILABLE = True
-except ImportError:
-    WEB_SERVER_AVAILABLE = False
-    logger.warning("FastAPI/uvicorn 未安装，Web 可视化功能将不可用")
+from .web import WebUIHandler
 
 
+@register("astrbot_plugin_cell_manager", "Cell Manager Team", "任务管理系统，支持无限递归的父子关系和漂亮的树形可视化", "v1.3.0")
 class CellManagerPlugin(Star):
     """Cell Manager AstrBot 插件"""
     
-    def __init__(self, context: Context):
+    def __init__(self, context: Context, config: dict = None):
         super().__init__(context)
+        self.config = config or {}
         
         # 初始化数据库 - 使用 AstrBot 的 plugin_data 目录
-        # 这样数据不会随插件更新/重装而丢失
         plugin_data_dir = get_astrbot_plugin_data_path()
         data_dir = os.path.join(plugin_data_dir, 'cell_manager')
         os.makedirs(data_dir, exist_ok=True)
@@ -51,70 +38,126 @@ class CellManagerPlugin(Star):
         self.db.init_tables()
         self.manager = CellManager(self.db)
         
-        # Web 服务器相关
-        self.web_server = None
-        self.web_server_task = None
-        self.web_port = 8082  # 默认端口 8082，避免与其他插件冲突
+        # WebUI 处理器
+        self.webui_handler = None
         
-        # 注册 LLM Tools（让 AI 可以通过自然语言调用）
-        # 使用装饰器方式自动注册，无需手动调用
+        # 注册 WebUI 路由
+        webui_config = self.config.get("webui_settings", {})
+        if webui_config.get("enabled", True):
+            self._register_webui()
         
-        # 延迟启动 Web 服务器，等 AstrBot 完全初始化后再启动
-        self._web_app = None
-        if WEB_SERVER_AVAILABLE:
-            self._setup_web_app()
-        
-        logger.info(f"Cell Manager 插件已初始化，数据库: {db_path}")
+                logger.info(f"Cell Manager 插件已初始化，数据库: {db_path}")
     
-    def _setup_web_app(self):
-        """设置 FastAPI 应用（但不启动）"""
+    def _register_webui(self):
+        """注册 WebUI 路由到 AstrBot"""
         try:
-            # 创建 FastAPI 应用
-            self._web_app = FastAPI(title="Cell Manager Web")
+            self.webui_handler = WebUIHandler(self.manager, self.db)
             
-            # 添加 CORS 中间件
-            self._web_app.add_middleware(
-                CORSMiddleware,
-                allow_origins=["*"],
-                allow_credentials=True,
-                allow_methods=["*"],
-                allow_headers=["*"],
+            # 注册主页面路由
+            self.context.register_web_route(
+                path="/cell_manager",
+                method="GET",
+                handler=self.webui_handler.serve_react_flow,
+                name="Cell Manager - React Flow 可视化"
             )
             
-            # 设置路由
-            setup_routes(self._web_app, self.manager, self.db)
-            
-            # 使用 AstrBot 的 register_task 注册启动任务
-            # 注意：register_task 接受一个可调用对象，不是协程对象
-            self.context.register_task(self._start_web_server_task(), "启动 Cell Manager Web 服务器")
-            
-        except Exception as e:
-            logger.error(f"设置 Web 应用失败: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
-    
-    async def _start_web_server_task(self):
-        """Web 服务器启动任务（包装器）"""
-        logger.info(f"正在启动 Cell Manager Web 服务器，端口: {self.web_port}")
-        await self._start_web_server_async()
-    
-    async def _start_web_server_async(self):
-        """异步启动 Web 服务器"""
-        if not self._web_app:
-            return
-        
-        try:
-            config = uvicorn.Config(
-                app=self._web_app,
-                host="0.0.0.0",
-                port=self.web_port,
-                log_level="warning",
-                loop="asyncio",
+            # 注册统计页面
+            self.context.register_web_route(
+                path="/cell_manager/stats",
+                method="GET",
+                handler=self.webui_handler.serve_stats,
+                name="Cell Manager - 时间统计"
             )
-            server = uvicorn.Server(config)
-            await server.serve()
+            
+            # 注册 API 路由
+            self.context.register_web_route(
+                path="/cell_manager/api/cells/graph",
+                method="GET",
+                handler=self.webui_handler.api_get_cells_graph,
+                name="获取任务图形数据"
+            )
+            
+            self.context.register_web_route(
+                path="/cell_manager/api/cells/roots",
+                method="GET",
+                handler=self.webui_handler.api_get_root_cells,
+                name="获取根节点列表"
+            )
+            
+            self.context.register_web_route(
+                path="/cell_manager/api/cells/{cell_id}",
+                method="GET",
+                handler=self.webui_handler.api_get_cell_detail,
+                name="获取任务详情"
+            )
+            
+            self.context.register_web_route(
+                path="/cell_manager/api/cells/{cell_id}",
+                method="PUT",
+                handler=self.webui_handler.api_update_cell,
+                name="更新任务"
+            )
+            
+            self.context.register_web_route(
+                path="/cell_manager/api/cells",
+                method="POST",
+                handler=self.webui_handler.api_create_cell,
+                name="创建任务"
+            )
+            
+            self.context.register_web_route(
+                path="/cell_manager/api/cells/{cell_id}/move",
+                method="POST",
+                handler=self.webui_handler.api_move_cell,
+                name="移动任务"
+            )
+            
+            self.context.register_web_route(
+                path="/cell_manager/api/cells/{cell_id}",
+                method="DELETE",
+                handler=self.webui_handler.api_delete_cell,
+                name="删除任务"
+            )
+            
+            self.context.register_web_route(
+                path="/cell_manager/api/stats/completed-dates",
+                method="GET",
+                handler=self.webui_handler.api_get_completed_dates,
+                name="获取完成日期列表"
+            )
+            
+            self.context.register_web_route(
+                path="/cell_manager/api/stats/completed-by-date",
+                method="GET",
+                handler=self.webui_handler.api_get_completed_by_date,
+                name="获取指定日期完成的任务"
+            )
+            
+            self.context.register_web_route(
+                path="/cell_manager/api/cells/archive-completed",
+                method="POST",
+                handler=self.webui_handler.api_archive_completed_cells,
+                name="归档所有已完成任务"
+            )
+            
+            self.context.register_web_route(
+                path="/cell_manager/api/cells/{cell_id}/archive",
+                method="POST",
+                handler=self.webui_handler.api_archive_cell,
+                name="归档任务"
+            )
+            
+            self.context.register_web_route(
+                path="/cell_manager/api/cells/{cell_id}/unarchive",
+                method="POST",
+                handler=self.webui_handler.api_unarchive_cell,
+                name="取消归档任务"
+            )
+            
+            logger.info("✅ Cell Manager WebUI 路由已注册到 AstrBot")
+            
         except Exception as e:
-            logger.error(f"Web 服务器运行出错: {e}")
+            logger.error(f"❌ 注册 WebUI 路由失败: {e}")
             import traceback
             logger.error(traceback.format_exc())
     
@@ -147,8 +190,7 @@ class CellManagerPlugin(Star):
 /cell archive-all - 归档所有已完成任务
 
 Web 可视化界面:
-- React Flow: http://<服务器IP>:8080/cell_manager/react-flow
-- 时间统计: http://<服务器IP>:8080/cell_manager/stats
+访问 AstrBot 管理面板 (http://<服务器IP>:6185) 即可使用可视化界面
 
 状态图标:
 [ ] 待办  [>] 进行中  [!] 紧急  [X] 已完成

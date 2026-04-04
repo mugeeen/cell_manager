@@ -3,6 +3,8 @@
 Cell Manager Web 可视化模块
 """
 
-from .routes import setup_routes
+from .handler import WebUIHandler
 
-__all__ = ['setup_routes']
+__all__ = ['WebUIHandler']
+
+
