@@ -53,7 +53,7 @@
             margin-bottom: 32px;
         }
 
-        /* 日期选择器 */
+        /* 日期选择�?*/
         .date-selector {
             display: flex;
             align-items: center;
@@ -203,7 +203,7 @@
             margin-left: 2px;
         }
 
-        /* 空状态 */
+        /* 空状�?*/
         .empty-state {
             text-align: center;
             padding: 60px 20px;
@@ -220,7 +220,7 @@
             font-size: 16px;
         }
 
-        /* 加载状态 */
+        /* 加载状�?*/
         .loading {
             text-align: center;
             padding: 60px 20px;
@@ -241,7 +241,7 @@
             to { transform: rotate(360deg); }
         }
 
-        /* 响应式 */
+        /* 响应�?*/
         @media (max-width: 600px) {
             body {
                 padding: 20px 16px;
@@ -285,7 +285,7 @@
 <body>
     <div class="container">
         <a href="." class="back-link">
-            ← 返回任务视图
+            �?返回任务视图
         </a>
 
         <div class="glass-card">
@@ -293,22 +293,22 @@
             <p class="subtitle">查看每日完成的任务和用时分布</p>
 
             <div class="date-selector">
-                <button class="nav-btn" onclick="changeDate(-1)">‹</button>
-                <div class="date-display" id="dateDisplay">加载中...</div>
-                <button class="nav-btn" onclick="changeDate(1)">›</button>
+                <button class="nav-btn" onclick="changeDate(-1)">�?/button>
+                <div class="date-display" id="dateDisplay">加载�?..</div>
+                <button class="nav-btn" onclick="changeDate(1)">�?/button>
             </div>
 
             <div id="content">
                 <div class="loading">
                     <div class="spinner"></div>
-                    <div>加载中...</div>
+                    <div>加载�?..</div>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        // 当前选中的日期
+        // 当前选中的日�?
         let currentDate = new Date();
         let chartInstance = null;
 
@@ -320,7 +320,7 @@
             return `${year}-${month}-${day}`;
         }
 
-        // 格式化日期显示
+        // 格式化日期显�?
         function formatDateDisplay(date) {
             const today = new Date();
             const yesterday = new Date(today);
@@ -338,7 +338,7 @@
             const weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
             const weekDay = weekDays[date.getDay()];
 
-            return `${month}月${day}日 ${weekDay}`;
+            return `${month}�?{day}�?${weekDay}`;
         }
 
         // 切换日期
@@ -486,7 +486,7 @@
             document.getElementById('content').innerHTML = `
                 <div class="loading">
                     <div class="spinner"></div>
-                    <div>加载中...</div>
+                    <div>加载�?..</div>
                 </div>
             `;
 
@@ -508,7 +508,7 @@
                         </div>
                         <div class="stat-item">
                             <div class="stat-value">${result.total_hours.toFixed(1)}</div>
-                            <div class="stat-label">总用时（小时）</div>
+                            <div class="stat-label">总用时（小时�?/div>
                         </div>
                     </div>
                     ${hasData ? `
@@ -536,7 +536,7 @@
             }
         }
 
-        // 初始化
+        // 初始�?
         loadData();
     </script>
 </body>

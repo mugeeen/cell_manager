@@ -7,31 +7,12 @@ Cell Manager WebUI 本地测试服务器
 import os
 import sys
 import asyncio
-import uvicorn
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 
 # 添加当前目录到路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from cell_manager import CellManager, DatabaseManager
 from web.server import WebUIServer
-
-# 创建 FastAPI 应用
-app = FastAPI(title="Cell Manager WebUI Test Server")
-
-# 允许跨域（方便开发调试）
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# 全局变量
-webui_server = None
-manager = None
 
 def init_test_data(manager):
     """初始化测试数据"""
@@ -75,11 +56,8 @@ def init_test_data(manager):
     
     print("测试数据创建完成！")
 
-@app.on_event("startup")
-async def startup():
-    """启动时初始化"""
-    global webui_server, manager
-    
+async def main():
+    """主函数"""
     print("=" * 50)
     print("Cell Manager WebUI 测试服务器启动中...")
     print("=" * 50)
@@ -96,29 +74,29 @@ async def startup():
     # 创建测试数据
     init_test_data(manager)
     
-    # 创建 WebUI 服务器
+    # 创建并启动 WebUI 服务器
     webui_server = WebUIServer(
         manager=manager,
         db=db,
         config={"host": "0.0.0.0", "port": 8082}
     )
     
-    # 将 WebUI 路由挂载到主应用
-    app.mount("/", webui_server._app)
-    
     print(f"\n数据库: {db_path}")
     print("\n访问地址:")
     print("  - WebUI 界面: http://localhost:8082/")
     print("  - API 文档:   http://localhost:8082/docs")
     print("=" * 50)
-
-@app.on_event("shutdown")
-async def shutdown():
-    """关闭时清理"""
-    global webui_server
-    if webui_server:
-        await webui_server.stop()
-        print("WebUI 服务器已停止")
+    
+    # 启动服务器
+    try:
+        await webui_server.start()
+    except asyncio.CancelledError:
+        print("\n服务器已停止")
+    except KeyboardInterrupt:
+        print("\n收到中断信号，正在停止服务器...")
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8082)
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\n服务器已安全停止")
