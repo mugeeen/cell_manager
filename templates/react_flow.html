@@ -73,12 +73,12 @@
         import { ReactFlow, Background, Controls, MiniMap, useNodesState, useEdgesState, Handle, Position } from '@xyflow/react';
         import dagre from 'dagre';
         
-        // 简化状态系统：待办(�? -> 进行�?�? -> 紧�?�? -> 已完�?�?
+        // 简化状态系统：待办(灰) -> 进行中(蓝) -> 紧急(红) -> 已完成(绿)
         const statusColors = { 'todo': '#9e9e9e', 'in_progress': '#2196f3', 'urgent': '#f44336', 'completed': '#4caf50' };
-        const statusLabels = { 'todo': '待办', 'in_progress': '进行�?, 'urgent': '紧�?, 'completed': '已完�? };
+        const statusLabels = { 'todo': '待办', 'in_progress': '进行中', 'urgent': '紧急', 'completed': '已完成' };
         
         const CustomNode = ({ data, selected }) => {
-            // 计算进度填充样式（只在非叶子节点显示�?
+            // 计算进度填充样式（只在非叶子节点显示）
             const showProgress = !data.is_leaf && data.progress > 0;
             const progressStyle = showProgress ? {
                 background: `linear-gradient(to right, ${data.color}33 ${data.progress}%, transparent ${data.progress}%)`
@@ -117,16 +117,16 @@
             const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
             const [nodeToDelete, setNodeToDelete] = useState(null);
             const reactFlowWrapper = useRef(null);
-            // 使用 ref 来存�?ReactFlow 实例，而不�?useReactFlow hook
+            // 使用 ref 来存储 ReactFlow 实例，而不是 useReactFlow hook
             const reactFlowInstanceRef = useRef(null);
             const [includeArchived, setIncludeArchived] = useState(false);
             
             useEffect(() => {
-                fetch('api/cells/roots').then(r => r.json()).then(data => { if (data.success) setRootCells(data.data); });
+                fetch('/api/cells/roots').then(r => r.json()).then(data => { if (data.success) setRootCells(data.data); });
             }, []);
             
             const loadGraph = useCallback(() => {
-                let url = selectedRoot ? `api/cells/graph?root_id=${selectedRoot}` : 'api/cells/graph';
+                let url = selectedRoot ? `/api/cells/graph?root_id=${selectedRoot}` : '/api/cells/graph';
                 if (includeArchived) {
                     url += (url.includes('?') ? '&' : '?') + 'include_archived=true';
                 }
@@ -155,8 +155,8 @@
             useEffect(() => { loadGraph(); }, [loadGraph]);
             
             const onConnect = useCallback((params) => {
-                // �?A 拉线�?B，B 应该成为 A 的儿�?
-                // params.source = A (父节�?, params.target = B (子节�?
+                // 从 A 拉线到 B，B 应该成为 A 的儿子
+                // params.source = A (父节点), params.target = B (子节点)
                 
                 // 乐观 UI：先本地添加连线，不刷新界面
                 const newEdge = {
@@ -169,8 +169,8 @@
                 };
                 setEdges(eds => [...eds, newEdge]);
                 
-                // 后台发送移动请�?
-                fetch(`api/cells/${params.target}/move`, {
+                // 后台发送移动请求
+                fetch(`/api/cells/${params.target}/move`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ new_parent_id: params.source })
@@ -180,9 +180,9 @@
                         setEdges(eds => eds.filter(e => e.id !== newEdge.id));
                         alert('移动失败: ' + result.message);
                     }
-                    // 成功则不刷新界面，保持乐�?UI 状�?
+                    // 成功则不刷新界面，保持乐观 UI 状态
                 }).catch(err => {
-                    // 网络错误：回�?
+                    // 网络错误：回滚
                     setEdges(eds => eds.filter(e => e.id !== newEdge.id));
                     alert('移动失败: ' + err.message);
                 });
@@ -192,7 +192,7 @@
             const applyAutoLayout = useCallback(() => {
                 if (nodes.length === 0) return;
                 
-                // 创建 dagre �?
+                // 创建 dagre 图
                 const g = new dagre.graphlib.Graph();
                 g.setDefaultEdgeLabel(() => ({}));
                 
@@ -204,7 +204,7 @@
                     g.setNode(node.id, { width: 170, height: 60 });
                 });
                 
-                // 添加�?
+                // 添加边
                 edges.forEach(edge => {
                     g.setEdge(edge.source, edge.target);
                 });
@@ -242,7 +242,7 @@
             }, []);
             
             const saveEdit = () => {
-                fetch(`api/cells/${editingNode.id}`, {
+                fetch(`/api/cells/${editingNode.id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -265,7 +265,7 @@
                 const tempId = `temp-${Date.now()}`;
                 const isCreatingRoot = !createParentId;
                 
-                // 1. 乐观地先添加到本地状�?
+                // 1. 乐观地先添加到本地状态
                 const newNode = {
                     id: tempId,
                     type: 'custom',
@@ -300,7 +300,7 @@
                 setCreateModalOpen(false);
                 
                 // 2. 发送API请求
-                fetch('api/cells', {
+                fetch('/api/cells', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
@@ -325,7 +325,7 @@
                         
                         // 如果在筛选视图下创建了根节点，更新根节点列表
                         if (isCreatingRoot) {
-                            fetch('api/cells/roots').then(r => r.json()).then(data => { 
+                            fetch('/api/cells/roots').then(r => r.json()).then(data => { 
                                 if (data.success) setRootCells(data.data); 
                             });
                         }
@@ -336,7 +336,7 @@
                         alert('创建失败: ' + result.message);
                     }
                 }).catch(err => {
-                    // 网络错误：回�?
+                    // 网络错误：回滚
                     setNodes(nds => nds.filter(n => n.id !== tempId));
                     setEdges(eds => eds.filter(e => e.target !== tempId));
                     alert('创建失败: ' + err.message);
@@ -394,17 +394,17 @@
                 setSelectedNode(null);
                 setDeleteConfirmOpen(false);
                 
-                // 发送删除请�?
-                fetch(`api/cells/${nodeId}`, {
+                // 发送删除请求
+                fetch(`/api/cells/${nodeId}`, {
                     method: 'DELETE'
                 }).then(r => r.json()).then(result => {
                     if (!result.success) {
-                        // 失败则刷新恢�?
+                        // 失败则刷新恢复
                         alert('删除失败: ' + result.message);
                         loadGraph();
                     } else {
-                        // 更新根节点列�?
-                        fetch('api/cells/roots').then(r => r.json()).then(data => { 
+                        // 更新根节点列表
+                        fetch('/api/cells/roots').then(r => r.json()).then(data => { 
                             if (data.success) setRootCells(data.data); 
                         });
                     }
@@ -417,7 +417,7 @@
             return React.createElement('div', { ref: reactFlowWrapper, style: { width: '100vw', height: '100vh' } },
                 React.createElement('div', { className: 'toolbar' },
                     React.createElement('select', { value: selectedRoot, onChange: (e) => setSelectedRoot(e.target.value) },
-                        React.createElement('option', { value: '' }, '全部根节�?),
+                        React.createElement('option', { value: '' }, '全部根节点'),
                         rootCells.map(cell => React.createElement('option', { key: cell.id, value: cell.id }, cell.title))
                     ),
                     React.createElement('button', { onClick: loadGraph }, '🔄 刷新'),
@@ -425,11 +425,11 @@
                     React.createElement('button', { onClick: () => window.location.href = '/stats', style: { background: '#ff9500' } }, '📊 统计'),
                     React.createElement('button', {
                         onClick: () => {
-                            fetch('api/cells/archive-completed', { method: 'POST' })
+                            fetch('/api/cells/archive-completed', { method: 'POST' })
                                 .then(r => r.json())
                                 .then(result => {
                                     if (result.success) {
-                                        alert(`已归�?${result.archived_count} 个完成的任务`);
+                                        alert(`已归档 ${result.archived_count} 个完成的任务`);
                                         loadGraph();
                                     } else {
                                         alert('归档失败: ' + result.message);
@@ -438,14 +438,14 @@
                                 .catch(err => alert('归档失败: ' + err.message));
                         },
                         style: { background: '#9c27b0' }
-                    }, '📦 归档已完�?),
+                    }, '📦 归档已完成'),
                     React.createElement('label', null,
                         React.createElement('input', {
                             type: 'checkbox',
                             checked: includeArchived,
                             onChange: (e) => setIncludeArchived(e.target.checked)
                         }),
-                        '显示已归�?
+                        '显示已归档'
                     )
                 ),
                 React.createElement(ReactFlow, {
@@ -457,17 +457,17 @@
                     React.createElement(MiniMap, { nodeStrokeWidth: 3, zoomable: true, pannable: true })
                 ),
                 selectedNode && React.createElement('div', { className: 'detail-panel' },
-                    React.createElement('h3', null, selectedNode.is_leaf ? '📋 叶子任务详情' : '📋 汇总任务详�?),
+                    React.createElement('h3', null, selectedNode.is_leaf ? '📋 叶子任务详情' : '📋 汇总任务详情'),
                     React.createElement('div', { className: 'detail-item' }, React.createElement('div', { className: 'detail-label' }, 'ID'), React.createElement('div', { className: 'detail-value' }, selectedNode.id)),
                     React.createElement('div', { className: 'detail-item' }, React.createElement('div', { className: 'detail-label' }, '标题'), React.createElement('div', { className: 'detail-value' }, selectedNode.label)),
-                    React.createElement('div', { className: 'detail-item' }, React.createElement('div', { className: 'detail-label' }, '状�?), React.createElement('div', { className: 'detail-value' }, statusLabels[selectedNode.status] || selectedNode.status)),
+                    React.createElement('div', { className: 'detail-item' }, React.createElement('div', { className: 'detail-label' }, '状态'), React.createElement('div', { className: 'detail-value' }, statusLabels[selectedNode.status] || selectedNode.status)),
                     React.createElement('div', { className: 'detail-item' }, React.createElement('div', { className: 'detail-label' }, '层级'), React.createElement('div', { className: 'detail-value' }, selectedNode.level)),
                     selectedNode.is_leaf ? React.createElement(React.Fragment, null,
-                        React.createElement('div', { className: 'detail-item' }, React.createElement('div', { className: 'detail-label' }, '预计工作�?), React.createElement('div', { className: 'detail-value' }, (selectedNode.workload || 0) + ' 小时')),
+                        React.createElement('div', { className: 'detail-item' }, React.createElement('div', { className: 'detail-label' }, '预计工作量'), React.createElement('div', { className: 'detail-value' }, (selectedNode.workload || 0) + ' 小时')),
                         React.createElement('div', { className: 'detail-item' }, React.createElement('div', { className: 'detail-label' }, '实际用时'), React.createElement('div', { className: 'detail-value' }, (selectedNode.actual_hours || 0) + ' 小时'))
                     ) : React.createElement(React.Fragment, null,
                         React.createElement('div', { className: 'detail-item' }, React.createElement('div', { className: 'detail-label' }, '总预计工作量'), React.createElement('div', { className: 'detail-value' }, (selectedNode.total_workload || 0) + ' 小时')),
-                        React.createElement('div', { className: 'detail-item' }, React.createElement('div', { className: 'detail-label' }, '总实际用�?), React.createElement('div', { className: 'detail-value' }, (selectedNode.total_hours || 0) + ' 小时'))
+                        React.createElement('div', { className: 'detail-item' }, React.createElement('div', { className: 'detail-label' }, '总实际用时'), React.createElement('div', { className: 'detail-value' }, (selectedNode.total_hours || 0) + ' 小时'))
                     ),
                     selectedNode.description && React.createElement('div', { className: 'detail-item' }, React.createElement('div', { className: 'detail-label' }, '描述'), React.createElement('div', { className: 'detail-value' }, selectedNode.description)),
                     // 删除按钮
@@ -476,16 +476,16 @@
                             className: 'btn-delete', 
                             style: { width: '100%', padding: '10px' },
                             onClick: () => handleDeleteNode(selectedNode)
-                        }, '🗑�?删除节点')
+                        }, '🗑️ 删除节点')
                     )
                 ),
                 React.createElement('div', { className: 'legend' },
-                    React.createElement('h4', null, '状态图�?),
+                    React.createElement('h4', null, '状态图例'),
                     Object.entries(statusLabels).map(([key, label]) => React.createElement('div', { key, className: 'legend-item' }, React.createElement('div', { className: 'legend-color', style: { background: statusColors[key] } }), React.createElement('span', null, label))),
                     React.createElement('h4', { style: { marginTop: '15px' } }, '操作说明'),
-                    React.createElement('div', { className: 'legend-item' }, React.createElement('span', null, '🖱�?左键点击'), React.createElement('span', null, '查看详情')),
+                    React.createElement('div', { className: 'legend-item' }, React.createElement('span', null, '🖱️ 左键点击'), React.createElement('span', null, '查看详情')),
                     React.createElement('div', { className: 'legend-item' }, React.createElement('span', null, '✏️ 双击节点'), React.createElement('span', null, '编辑节点')),
-                    React.createElement('div', { className: 'legend-item' }, React.createElement('span', null, '🔗 拖拽连接�?), React.createElement('span', null, '建立关系')),
+                    React.createElement('div', { className: 'legend-item' }, React.createElement('span', null, '🔗 拖拽连接点'), React.createElement('span', null, '建立关系')),
                     React.createElement('div', { className: 'legend-item' }, React.createElement('span', null, '🖱️🖱️ 右键点击'), React.createElement('span', null, '打开菜单'))
                 ),
                 // 右键菜单
@@ -494,12 +494,12 @@
                     style: { left: contextMenuPos.x, top: contextMenuPos.y }
                 },
                     contextMenuNode ? React.createElement(React.Fragment, null,
-                        React.createElement('div', { className: 'context-menu-item', onClick: () => openCreateModal(contextMenuNode.data.id) }, `�?�?"${contextMenuNode.data.label}" 下创建子任务`),
+                        React.createElement('div', { className: 'context-menu-item', onClick: () => openCreateModal(contextMenuNode.data.id) }, `➕ 在 "${contextMenuNode.data.label}" 下创建子任务`),
                         React.createElement('div', { className: 'context-menu-divider' }),
                         React.createElement('div', { className: 'context-menu-item', onClick: () => { setEditingNode({ ...contextMenuNode.data }); setEditModalOpen(true); setContextMenuVisible(false); } }, '✏️ 编辑节点'),
                         contextMenuNode.data.is_archived
                             ? React.createElement('div', { className: 'context-menu-item', onClick: () => {
-                                fetch(`api/cells/${contextMenuNode.data.id}/unarchive`, { method: 'POST' })
+                                fetch(`/api/cells/${contextMenuNode.data.id}/unarchive`, { method: 'POST' })
                                     .then(r => r.json())
                                     .then(result => {
                                         if (result.success) {
@@ -512,7 +512,7 @@
                                     .catch(err => alert('取消归档失败: ' + err.message));
                             } }, '📤 取消归档')
                             : React.createElement('div', { className: 'context-menu-item', onClick: () => {
-                                fetch(`api/cells/${contextMenuNode.data.id}/archive`, { method: 'POST' })
+                                fetch(`/api/cells/${contextMenuNode.data.id}/archive`, { method: 'POST' })
                                     .then(r => r.json())
                                     .then(result => {
                                         if (result.success) {
@@ -524,20 +524,20 @@
                                     })
                                     .catch(err => alert('归档失败: ' + err.message));
                             } }, '📦 归档任务'),
-                        React.createElement('div', { className: 'context-menu-item', onClick: () => handleDeleteNode(contextMenuNode.data) }, '🗑�?删除节点')
+                        React.createElement('div', { className: 'context-menu-item', onClick: () => handleDeleteNode(contextMenuNode.data) }, '🗑️ 删除节点')
                     ) : React.createElement(React.Fragment, null,
-                        React.createElement('div', { className: 'context-menu-item', onClick: () => openCreateModal(null) }, '�?创建根任�?)
+                        React.createElement('div', { className: 'context-menu-item', onClick: () => openCreateModal(null) }, '➕ 创建根任务')
                     )
                 ),
                 // 编辑弹窗
                 editModalOpen && editingNode && React.createElement('div', { className: 'modal-overlay', onClick: () => setEditModalOpen(false) },
                     React.createElement('div', { className: 'modal', onClick: (e) => e.stopPropagation() },
-                        React.createElement('h3', null, editingNode.is_leaf ? '✏️ 编辑叶子任务' : '✏️ 编辑汇总任�?),
+                        React.createElement('h3', null, editingNode.is_leaf ? '✏️ 编辑叶子任务' : '✏️ 编辑汇总任务'),
                         React.createElement('div', { className: 'form-group' }, React.createElement('label', null, '标题'), React.createElement('input', { type: 'text', value: editingNode.title || '', onChange: (e) => setEditingNode({ ...editingNode, title: e.target.value }) })),
                         React.createElement('div', { className: 'form-group' }, React.createElement('label', null, '描述'), React.createElement('textarea', { rows: 3, value: editingNode.description || '', onChange: (e) => setEditingNode({ ...editingNode, description: e.target.value }) })),
-                        React.createElement('div', { className: 'form-group' }, React.createElement('label', null, '状�?), React.createElement('select', { value: editingNode.status || 'todo', onChange: (e) => setEditingNode({ ...editingNode, status: e.target.value }) }, Object.entries(statusLabels).map(([key, label]) => React.createElement('option', { key, value: key }, label)))),
+                        React.createElement('div', { className: 'form-group' }, React.createElement('label', null, '状态'), React.createElement('select', { value: editingNode.status || 'todo', onChange: (e) => setEditingNode({ ...editingNode, status: e.target.value }) }, Object.entries(statusLabels).map(([key, label]) => React.createElement('option', { key, value: key }, label)))),
                         editingNode.is_leaf ? React.createElement(React.Fragment, null,
-                            React.createElement('div', { className: 'form-group' }, React.createElement('label', null, '预计工作量（小时�?), React.createElement('input', { type: 'number', step: '0.5', min: '0', value: editingNode.workload || 0, onChange: (e) => setEditingNode({ ...editingNode, workload: parseFloat(e.target.value) || 0 }) })),
+                            React.createElement('div', { className: 'form-group' }, React.createElement('label', null, '预计工作量（小时）'), React.createElement('input', { type: 'number', step: '0.5', min: '0', value: editingNode.workload || 0, onChange: (e) => setEditingNode({ ...editingNode, workload: parseFloat(e.target.value) || 0 }) })),
                             React.createElement('div', { className: 'form-group' }, React.createElement('label', null, '实际用时（小时）'), React.createElement('input', { type: 'number', step: '0.5', min: '0', value: editingNode.actual_hours || 0, onChange: (e) => setEditingNode({ ...editingNode, actual_hours: parseFloat(e.target.value) || 0 }) }))
                         ) : React.createElement(React.Fragment, null,
                             React.createElement('div', { className: 'form-group' }, React.createElement('label', null, '总预计工作量（自动汇总）'), React.createElement('div', { style: { padding: '8px', background: '#f5f5f5', borderRadius: '4px' } }, (editingNode.total_workload || 0) + ' 小时')),
@@ -549,19 +549,19 @@
                 // 创建弹窗
                 createModalOpen && React.createElement('div', { className: 'modal-overlay', onClick: () => setCreateModalOpen(false) },
                     React.createElement('div', { className: 'modal', onClick: (e) => e.stopPropagation() },
-                        React.createElement('h3', null, createParentId ? '�?创建子任�? : '�?创建根任�?),
+                        React.createElement('h3', null, createParentId ? '➕ 创建子任务' : '➕ 创建根任务'),
                         React.createElement('div', { className: 'form-group' }, React.createElement('label', null, '标题 *'), React.createElement('input', { type: 'text', value: editingNode.title, onChange: (e) => setEditingNode({ ...editingNode, title: e.target.value }), placeholder: '输入任务标题' })),
                         React.createElement('div', { className: 'form-group' }, React.createElement('label', null, '描述'), React.createElement('textarea', { rows: 3, value: editingNode.description || '', onChange: (e) => setEditingNode({ ...editingNode, description: e.target.value }), placeholder: '输入任务描述（可选）' })),
-                        React.createElement('div', { className: 'form-group' }, React.createElement('label', null, '预计工作量（小时�?), React.createElement('input', { type: 'number', step: '0.5', min: '0', value: editingNode.workload, onChange: (e) => setEditingNode({ ...editingNode, workload: e.target.value }) })),
+                        React.createElement('div', { className: 'form-group' }, React.createElement('label', null, '预计工作量（小时）'), React.createElement('input', { type: 'number', step: '0.5', min: '0', value: editingNode.workload, onChange: (e) => setEditingNode({ ...editingNode, workload: e.target.value }) })),
                         React.createElement('div', { className: 'modal-buttons' }, React.createElement('button', { className: 'btn-cancel', onClick: () => setCreateModalOpen(false) }, '取消'), React.createElement('button', { className: 'btn-save', onClick: saveCreate }, '创建'))
                     )
                 ),
                 // 删除确认弹窗
                 deleteConfirmOpen && nodeToDelete && React.createElement('div', { className: 'modal-overlay', onClick: () => setDeleteConfirmOpen(false) },
                     React.createElement('div', { className: 'modal', onClick: (e) => e.stopPropagation(), style: { width: '350px' } },
-                        React.createElement('h3', null, '🗑�?确认删除'),
+                        React.createElement('h3', null, '🗑️ 确认删除'),
                         React.createElement('p', { style: { marginBottom: '20px', color: '#666' } }, 
-                            `确定要删除节�?"${nodeToDelete.label}" 吗？`,
+                            `确定要删除节点 "${nodeToDelete.label}" 吗？`,
                             nodeToDelete.is_leaf ? null : React.createElement('br', null), 
                             nodeToDelete.is_leaf ? null : React.createElement('span', { style: { color: '#f44336', fontSize: '12px' } }, '该节点有子节点，删除将同时删除所有子节点')
                         ),
