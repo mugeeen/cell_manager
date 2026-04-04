@@ -60,6 +60,8 @@ class CellManagerPlugin(Star):
             host = webui_config.get("host", "0.0.0.0")
             port = int(webui_config.get("port", 8082))
             
+            logger.info(f"🚀 正在初始化 Cell Manager WebUI 服务器: {host}:{port}")
+            
             # 创建并启动独立 WebUI 服务器
             self.webui_server = WebUIServer(
                 manager=self.manager,
@@ -69,6 +71,7 @@ class CellManagerPlugin(Star):
             
             # 在后台启动服务器
             asyncio.create_task(self._start_webui())
+            logger.info(f"✅ Cell Manager WebUI 服务器已创建，正在后台启动...")
             
         except Exception as e:
             logger.error(f"❌ 注册 WebUI 失败: {e}")
