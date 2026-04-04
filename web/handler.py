@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Cell Manager WebUI 处理器
-适配 AstrBot 的 register_web_route API
+适配 AstrBot 的 register_web_api API
 """
 
 import os

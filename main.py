@@ -51,113 +51,113 @@ class CellManagerPlugin(Star):
     def _register_webui(self):
         """注册 WebUI 路由到 AstrBot"""
         try:
-            # 检查 AstrBot 是否支持 register_web_route
-            if not hasattr(self.context, 'register_web_route'):
-                logger.warning("⚠️ 当前 AstrBot 版本不支持 register_web_route，WebUI 功能不可用")
+            # 检查 AstrBot 是否支持 register_web_api
+            if not hasattr(self.context, 'register_web_api'):
+                logger.warning("⚠️ 当前 AstrBot 版本不支持 register_web_api，WebUI 功能不可用")
                 logger.info("💡 请升级到 AstrBot >= 4.0 以使用 WebUI 功能")
                 return
             
             self.webui_handler = WebUIHandler(self.manager, self.db)
             
             # 注册主页面路由
-            self.context.register_web_route(
-                path="/cell_manager",
-                method="GET",
-                handler=self.webui_handler.serve_react_flow,
-                name="Cell Manager - React Flow 可视化"
+            self.context.register_web_api(
+                route="/cell_manager",
+                view_handler=self.webui_handler.serve_react_flow,
+                methods=["GET"],
+                desc="Cell Manager - React Flow 可视化"
             )
             
             # 注册统计页面
-            self.context.register_web_route(
-                path="/cell_manager/stats",
-                method="GET",
-                handler=self.webui_handler.serve_stats,
-                name="Cell Manager - 时间统计"
+            self.context.register_web_api(
+                route="/cell_manager/stats",
+                view_handler=self.webui_handler.serve_stats,
+                methods=["GET"],
+                desc="Cell Manager - 时间统计"
             )
             
             # 注册 API 路由
-            self.context.register_web_route(
-                path="/cell_manager/api/cells/graph",
-                method="GET",
-                handler=self.webui_handler.api_get_cells_graph,
-                name="获取任务图形数据"
+            self.context.register_web_api(
+                route="/cell_manager/api/cells/graph",
+                view_handler=self.webui_handler.api_get_cells_graph,
+                methods=["GET"],
+                desc="获取任务图形数据"
             )
             
-            self.context.register_web_route(
-                path="/cell_manager/api/cells/roots",
-                method="GET",
-                handler=self.webui_handler.api_get_root_cells,
-                name="获取根节点列表"
+            self.context.register_web_api(
+                route="/cell_manager/api/cells/roots",
+                view_handler=self.webui_handler.api_get_root_cells,
+                methods=["GET"],
+                desc="获取根节点列表"
             )
             
-            self.context.register_web_route(
-                path="/cell_manager/api/cells/{cell_id}",
-                method="GET",
-                handler=self.webui_handler.api_get_cell_detail,
-                name="获取任务详情"
+            self.context.register_web_api(
+                route="/cell_manager/api/cells/<cell_id>",
+                view_handler=self.webui_handler.api_get_cell_detail,
+                methods=["GET"],
+                desc="获取任务详情"
             )
             
-            self.context.register_web_route(
-                path="/cell_manager/api/cells/{cell_id}",
-                method="PUT",
-                handler=self.webui_handler.api_update_cell,
-                name="更新任务"
+            self.context.register_web_api(
+                route="/cell_manager/api/cells/<cell_id>",
+                view_handler=self.webui_handler.api_update_cell,
+                methods=["PUT"],
+                desc="更新任务"
             )
             
-            self.context.register_web_route(
-                path="/cell_manager/api/cells",
-                method="POST",
-                handler=self.webui_handler.api_create_cell,
-                name="创建任务"
+            self.context.register_web_api(
+                route="/cell_manager/api/cells",
+                view_handler=self.webui_handler.api_create_cell,
+                methods=["POST"],
+                desc="创建任务"
             )
             
-            self.context.register_web_route(
-                path="/cell_manager/api/cells/{cell_id}/move",
-                method="POST",
-                handler=self.webui_handler.api_move_cell,
-                name="移动任务"
+            self.context.register_web_api(
+                route="/cell_manager/api/cells/<cell_id>/move",
+                view_handler=self.webui_handler.api_move_cell,
+                methods=["POST"],
+                desc="移动任务"
             )
             
-            self.context.register_web_route(
-                path="/cell_manager/api/cells/{cell_id}",
-                method="DELETE",
-                handler=self.webui_handler.api_delete_cell,
-                name="删除任务"
+            self.context.register_web_api(
+                route="/cell_manager/api/cells/<cell_id>",
+                view_handler=self.webui_handler.api_delete_cell,
+                methods=["DELETE"],
+                desc="删除任务"
             )
             
-            self.context.register_web_route(
-                path="/cell_manager/api/stats/completed-dates",
-                method="GET",
-                handler=self.webui_handler.api_get_completed_dates,
-                name="获取完成日期列表"
+            self.context.register_web_api(
+                route="/cell_manager/api/stats/completed-dates",
+                view_handler=self.webui_handler.api_get_completed_dates,
+                methods=["GET"],
+                desc="获取完成日期列表"
             )
             
-            self.context.register_web_route(
-                path="/cell_manager/api/stats/completed-by-date",
-                method="GET",
-                handler=self.webui_handler.api_get_completed_by_date,
-                name="获取指定日期完成的任务"
+            self.context.register_web_api(
+                route="/cell_manager/api/stats/completed-by-date",
+                view_handler=self.webui_handler.api_get_completed_by_date,
+                methods=["GET"],
+                desc="获取指定日期完成的任务"
             )
             
-            self.context.register_web_route(
-                path="/cell_manager/api/cells/archive-completed",
-                method="POST",
-                handler=self.webui_handler.api_archive_completed_cells,
-                name="归档所有已完成任务"
+            self.context.register_web_api(
+                route="/cell_manager/api/cells/archive-completed",
+                view_handler=self.webui_handler.api_archive_completed_cells,
+                methods=["POST"],
+                desc="归档所有已完成任务"
             )
             
-            self.context.register_web_route(
-                path="/cell_manager/api/cells/{cell_id}/archive",
-                method="POST",
-                handler=self.webui_handler.api_archive_cell,
-                name="归档任务"
+            self.context.register_web_api(
+                route="/cell_manager/api/cells/<cell_id>/archive",
+                view_handler=self.webui_handler.api_archive_cell,
+                methods=["POST"],
+                desc="归档任务"
             )
             
-            self.context.register_web_route(
-                path="/cell_manager/api/cells/{cell_id}/unarchive",
-                method="POST",
-                handler=self.webui_handler.api_unarchive_cell,
-                name="取消归档任务"
+            self.context.register_web_api(
+                route="/cell_manager/api/cells/<cell_id>/unarchive",
+                view_handler=self.webui_handler.api_unarchive_cell,
+                methods=["POST"],
+                desc="取消归档任务"
             )
             
             logger.info("✅ Cell Manager WebUI 路由已注册到 AstrBot")
