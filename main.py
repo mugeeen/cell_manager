@@ -46,7 +46,7 @@ class CellManagerPlugin(Star):
         if webui_config.get("enabled", True):
             self._register_webui()
         
-                logger.info(f"Cell Manager 插件已初始化，数据库: {db_path}")
+        logger.info(f"Cell Manager 插件已初始化，数据库: {db_path}")
     
     def _register_webui(self):
         """注册 WebUI 路由到 AstrBot"""
