@@ -34,7 +34,7 @@ help: |
 
 version: v1.3.0
 author: Cell Manager Team
-repo: https://github.com/your-repo/astrbot_plugin_cell_manager
+repo: https://github.com/mugeeen/cell_manager
 
 # 插件展示名
 display_name: Cell Manager 任务管理
