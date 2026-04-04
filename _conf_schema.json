@@ -1,1 +1,27 @@
-{"webui_settings":{"description":"WebUI 设置","hint":"配置任务管理可视化界面","type":"object","items":{"enabled":{"description":"启用 WebUI","hint":"开启后可在 AstrBot 管理面板中访问任务管理界面","type":"bool","default":true}}}}
+{
+  "webui_settings": {
+    "description": "WebUI 设置",
+    "hint": "配置任务管理可视化界面",
+    "type": "object",
+    "items": {
+      "enabled": {
+        "description": "启用 WebUI",
+        "hint": "开启后可访问任务管理 Web 界面",
+        "type": "bool",
+        "default": true
+      },
+      "host": {
+        "description": "监听地址",
+        "hint": "WebUI 服务器监听地址，0.0.0.0 表示监听所有接口",
+        "type": "string",
+        "default": "0.0.0.0"
+      },
+      "port": {
+        "description": "监听端口",
+        "hint": "WebUI 服务器监听端口",
+        "type": "int",
+        "default": 8082
+      }
+    }
+  }
+}
