@@ -198,13 +198,13 @@ class WebUIServer:
             try:
                 data = await request.json()
                 title = data.get("title")
-                effort = data.get("effort", 1)
+                workload = data.get("workload", 1)
                 parent_id = data.get("parent_id")
                 
                 if not title:
                     raise HTTPException(status_code=400, detail="标题不能为空")
                 
-                cell = self.manager.create_cell(title=title, effort=effort, parent_id=parent_id)
+                cell = self.manager.create_cell(title=title, workload=workload, parent_id=parent_id)
                 
                 return {
                     "success": True,
