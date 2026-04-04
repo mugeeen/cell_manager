@@ -5,6 +5,7 @@ Cell Manager WebUI 独立服务器
 """
 
 import asyncio
+import logging
 from typing import Any, Optional
 from pathlib import Path
 
@@ -13,7 +14,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 import uvicorn
 
-from astrbot.api import logger
+# 尝试导入 AstrBot 日志，失败则使用标准日志
+try:
+    from astrbot.api import logger
+except ImportError:
+    logger = logging.getLogger("cell_manager_webui")
+    logger.setLevel(logging.INFO)
+    if not logger.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        logger.addHandler(handler)
 
 
 class WebUIServer:
