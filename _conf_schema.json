@@ -1,0 +1,1 @@
+{"webui_settings":{"description":"WebUI 设置","hint":"配置任务管理可视化界面","type":"object","items":{"enabled":{"description":"启用 WebUI","hint":"开启后可在 AstrBot 管理面板中访问任务管理界面","type":"bool","default":true}}}}

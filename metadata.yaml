@@ -30,10 +30,9 @@ help: |
   [ ] 待办  [>] 进行中  [!] 紧急  [X] 已完成
 
   【Web 可视化界面】
-  - React Flow 交互式任务图：/cell_manager/react-flow
-  - 时间统计仪表盘：/cell_manager/stats
+    访问 AstrBot 管理面板即可使用可视化界面
 
-version: v1.2.0
+version: v1.3.0
 author: Cell Manager Team
 repo: https://github.com/your-repo/astrbot_plugin_cell_manager
 

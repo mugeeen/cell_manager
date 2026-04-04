@@ -122,11 +122,11 @@
             const [includeArchived, setIncludeArchived] = useState(false);
             
             useEffect(() => {
-                fetch('/cell_manager/api/cells/roots').then(r => r.json()).then(data => { if (data.success) setRootCells(data.data); });
+                fetch('api/cells/roots').then(r => r.json()).then(data => { if (data.success) setRootCells(data.data); });
             }, []);
             
             const loadGraph = useCallback(() => {
-                let url = selectedRoot ? `/cell_manager/api/cells/graph?root_id=${selectedRoot}` : '/cell_manager/api/cells/graph';
+                let url = selectedRoot ? `api/cells/graph?root_id=${selectedRoot}` : 'api/cells/graph';
                 if (includeArchived) {
                     url += (url.includes('?') ? '&' : '?') + 'include_archived=true';
                 }
@@ -170,7 +170,7 @@
                 setEdges(eds => [...eds, newEdge]);
                 
                 // 后台发送移动请求
-                fetch(`/cell_manager/api/cells/${params.target}/move`, {
+                fetch(`api/cells/${params.target}/move`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ new_parent_id: params.source })
@@ -242,7 +242,7 @@
             }, []);
             
             const saveEdit = () => {
-                fetch(`/cell_manager/api/cells/${editingNode.id}`, {
+                fetch(`api/cells/${editingNode.id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -300,7 +300,7 @@
                 setCreateModalOpen(false);
                 
                 // 2. 发送API请求
-                fetch('/cell_manager/api/cells', {
+                fetch('api/cells', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
@@ -325,7 +325,7 @@
                         
                         // 如果在筛选视图下创建了根节点，更新根节点列表
                         if (isCreatingRoot) {
-                            fetch('/cell_manager/api/cells/roots').then(r => r.json()).then(data => { 
+                            fetch('api/cells/roots').then(r => r.json()).then(data => { 
                                 if (data.success) setRootCells(data.data); 
                             });
                         }
@@ -395,7 +395,7 @@
                 setDeleteConfirmOpen(false);
                 
                 // 发送删除请求
-                fetch(`/cell_manager/api/cells/${nodeId}`, {
+                fetch(`api/cells/${nodeId}`, {
                     method: 'DELETE'
                 }).then(r => r.json()).then(result => {
                     if (!result.success) {
@@ -404,7 +404,7 @@
                         loadGraph();
                     } else {
                         // 更新根节点列表
-                        fetch('/cell_manager/api/cells/roots').then(r => r.json()).then(data => { 
+                        fetch('api/cells/roots').then(r => r.json()).then(data => { 
                             if (data.success) setRootCells(data.data); 
                         });
                     }
@@ -425,7 +425,7 @@
                     React.createElement('button', { onClick: () => window.location.href = '/cell_manager/stats', style: { background: '#ff9500' } }, '📊 统计'),
                     React.createElement('button', {
                         onClick: () => {
-                            fetch('/cell_manager/api/cells/archive-completed', { method: 'POST' })
+                            fetch('api/cells/archive-completed', { method: 'POST' })
                                 .then(r => r.json())
                                 .then(result => {
                                     if (result.success) {
@@ -499,7 +499,7 @@
                         React.createElement('div', { className: 'context-menu-item', onClick: () => { setEditingNode({ ...contextMenuNode.data }); setEditModalOpen(true); setContextMenuVisible(false); } }, '✏️ 编辑节点'),
                         contextMenuNode.data.is_archived
                             ? React.createElement('div', { className: 'context-menu-item', onClick: () => {
-                                fetch(`/cell_manager/api/cells/${contextMenuNode.data.id}/unarchive`, { method: 'POST' })
+                                fetch(`api/cells/${contextMenuNode.data.id}/unarchive`, { method: 'POST' })
                                     .then(r => r.json())
                                     .then(result => {
                                         if (result.success) {
@@ -512,7 +512,7 @@
                                     .catch(err => alert('取消归档失败: ' + err.message));
                             } }, '📤 取消归档')
                             : React.createElement('div', { className: 'context-menu-item', onClick: () => {
-                                fetch(`/cell_manager/api/cells/${contextMenuNode.data.id}/archive`, { method: 'POST' })
+                                fetch(`api/cells/${contextMenuNode.data.id}/archive`, { method: 'POST' })
                                     .then(r => r.json())
                                     .then(result => {
                                         if (result.success) {
