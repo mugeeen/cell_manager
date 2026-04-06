@@ -18,7 +18,6 @@ from astrbot.core.utils.astrbot_path import get_astrbot_plugin_data_path
 from .cell_manager import CellManager, DatabaseManager, CellStatus, ViewMode, visualize_tree
 
 # 导入 Web 路由
-from .web import WebUIHandler
 from .web.server import WebUIServer
 
 
