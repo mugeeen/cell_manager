@@ -168,6 +168,7 @@ class Cell:
             parent_id=data['parent_id'],
             children_ids=json.loads(data['children_ids']) if data['children_ids'] else [],
             created_at=datetime.fromisoformat(data['created_at']),
+            completed_at=datetime.fromisoformat(data['completed_at']) if data.get('completed_at') else None,
             deadline=datetime.fromisoformat(data['deadline']) if data['deadline'] else None,
             actual_hours=data.get('actual_hours', 0.0),
             total_hours=data.get('total_hours', 0.0),

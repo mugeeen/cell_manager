@@ -389,7 +389,7 @@ class DatabaseManager:
         """
         获取指定日期完成的叶子节点
         
-        只返回 status='completed' 且 children_ids='[]' 的 Cell
+        只返回 status='completed' 且没有子节点的 Cell
         
         Args:
             date_str: 日期字符串，格式为 'YYYY-MM-DD'
@@ -401,13 +401,15 @@ class DatabaseManager:
             conn = self.connect()
             cursor = conn.cursor()
             
-            # 查询指定日期完成的叶子节点
+            # 查询指定日期完成的叶子节点（使用子查询判断是否为叶子节点）
             cursor.execute("""
-                SELECT * FROM cells
-                WHERE status = 'completed'
-                AND children_ids = '[]'
-                AND DATE(completed_at) = DATE(?)
-                ORDER BY completed_at DESC
+                SELECT c.* FROM cells c
+                WHERE c.status = 'completed'
+                AND DATE(c.completed_at) = DATE(?)
+                AND NOT EXISTS (
+                    SELECT 1 FROM cells child WHERE child.parent_id = c.id
+                )
+                ORDER BY c.completed_at DESC
             """, (date_str,))
             
             rows = cursor.fetchall()
@@ -427,12 +429,15 @@ class DatabaseManager:
             conn = self.connect()
             cursor = conn.cursor()
             
+            # 使用子查询判断是否为叶子节点（没有子节点）
             cursor.execute("""
-                SELECT DISTINCT DATE(completed_at) as date
-                FROM cells
-                WHERE status = 'completed'
-                AND children_ids = '[]'
-                AND completed_at IS NOT NULL
+                SELECT DISTINCT DATE(c.completed_at) as date
+                FROM cells c
+                WHERE c.status = 'completed'
+                AND c.completed_at IS NOT NULL
+                AND NOT EXISTS (
+                    SELECT 1 FROM cells child WHERE child.parent_id = c.id
+                )
                 ORDER BY date DESC
             """)
             
